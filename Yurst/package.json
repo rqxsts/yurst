@@ -1,5 +1,5 @@
 {
-  "name": "yurst",
+  "name": "yurst.js",
   "version": "0.1.0",
   "description": "A lightweight Node.js library for building Yurba.one bots with commands, callbacks, keyboards, and inline queries",
   "type": "module",
@@ -29,7 +29,7 @@
   "keywords": [
     "yurba",
     "bot",
-    "yurst"
+    "yurst.js"
   ],
   "author": "Rqxsts",
   "license": "MIT",

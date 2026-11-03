@@ -5,7 +5,7 @@
  * The singleton `bot` is the primary API surface of Yurst:
  *
  * ```js
- * import { bot } from 'yurst';
+ * import { bot } from 'yurst.js';
  *
  * bot.command('ping', 'Check connection', ctx => ctx.reply('pong'));
  * bot.on('message', ctx => ctx.reply('Got your message'));

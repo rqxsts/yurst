@@ -1,9 +1,9 @@
 /**
- * @module yurst
+ * @module yurst.js
  * Lightweight library for building Yurba.one bots.
  *
  * @example
- * import { bot } from 'yurst';
+ * import { bot } from 'yurst.js';
  *
  * bot.command('ping', 'Check connection', ctx => ctx.reply('pong'));
  * bot.start();

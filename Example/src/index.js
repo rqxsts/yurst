@@ -1,4 +1,4 @@
-import { bot, api, fmtUptime, L } from 'yurst';
+import { bot, api, fmtUptime, L } from 'yurst.js';
 
 const cap = (s) => s[0].toUpperCase() + s.slice(1);
 

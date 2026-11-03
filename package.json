@@ -7,8 +7,8 @@
     "start": "pnpm --filter yarix start",
     "dev": "pnpm --filter yarix dev",
     "dev:logs": "pnpm --filter yarix dev:logs",
-    "test": "pnpm --filter yurst test",
-    "test:coverage": "pnpm --filter yurst test:coverage",
+    "test": "pnpm --filter yurst.js test",
+    "test:coverage": "pnpm --filter yurst.js test:coverage",
 
     "docs:dev": "pnpm --filter docs dev",
     "docs:run": "pnpm --filter docs run"

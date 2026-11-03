@@ -214,7 +214,7 @@ importers:
 
   Example:
     dependencies:
-      yurst:
+      yurst.js:
         specifier: workspace:*
         version: link:../Yurst
 

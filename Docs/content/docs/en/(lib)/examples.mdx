@@ -8,7 +8,7 @@ description: Ready-made scenarios for copying and adapting
 ## Minimal bot
 
 ```js title="src/index.js"
-import { bot } from 'yurst';
+import { bot } from 'yurst.js';
 
 bot.command('start', 'Почати', (ctx) => ctx.reply('Привіт!'));
 bot.command('ping', 'Перевірка', (ctx) => ctx.reply('pong'));
@@ -21,7 +21,7 @@ await bot.start();
 Commands, buttons, callbacks, messages, and inline:
 
 ```js title="src/index.js"
-import { bot, api, fmtUptime, stats } from 'yurst';
+import { bot, api, fmtUptime, stats } from 'yurst.js';
 
 // Команди
 bot.command('start', 'Почати роботу', (ctx) =>
@@ -283,7 +283,7 @@ bot.on('inline', (ctx) => {
 ## Event handling
 
 ```js
-import { L } from 'yurst';
+import { L } from 'yurst.js';
 
 bot.on('stopped', (update) => {
   L.info('bot', `User ${update.User?.ID} blocked the bot`);
@@ -334,7 +334,7 @@ bot.callback('admin', async (ctx) => {
 `ButtonsBuilder` builds button rows from a dynamic list. Here up to three buttons are added to each row:
 
 ```js
-import { ButtonsBuilder, bot } from 'yurst';
+import { ButtonsBuilder, bot } from 'yurst.js';
 
 const products = Array.from({ length: 18 }, (_, index) => ({
   id: String(index + 1),

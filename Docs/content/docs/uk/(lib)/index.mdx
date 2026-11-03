@@ -79,22 +79,22 @@ Yurst є ESM-пакетом, тому додайте у `package.json` рядо�
 <Tabs items={['npm', 'pnpm', 'yarn', 'bun']}>
   <Tab value="npm">
     ```sh
-    npm install yurst
+    npm install yurst.js
     ```
   </Tab>
   <Tab value="pnpm">
     ```sh
-    pnpm add yurst
+    pnpm add yurst.js
     ```
   </Tab>
   <Tab value="yarn">
     ```sh
-    yarn add yurst
+    yarn add yurst.js
     ```
   </Tab>
   <Tab value="bun">
     ```sh
-    bun add yurst
+    bun add yurst.js
     ```
   </Tab>
 </Tabs>
@@ -113,7 +113,7 @@ MODE=ws
 ### Напишіть код [step]
 
 ```js title="src/index.js"
-import { bot } from 'yurst';
+import { bot } from 'yurst.js';
 
 bot.command('ping', 'Connection check', (ctx) => ctx.reply('pong'));
 bot.command('help', 'List of commands', (ctx) => ctx.reply(ctx.help()));

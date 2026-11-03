@@ -8,7 +8,7 @@ description: Готові сценарії для копіювання та ад
 ## Мінімальний бот
 
 ```js title="src/index.js"
-import { bot } from 'yurst';
+import { bot } from 'yurst.js';
 
 bot.command('start', 'Почати', (ctx) => ctx.reply('Привіт!'));
 bot.command('ping', 'Перевірка', (ctx) => ctx.reply('pong'));
@@ -21,7 +21,7 @@ await bot.start();
 Команди, кнопки, callback, повідомлення та inline:
 
 ```js title="src/index.js"
-import { bot, api, fmtUptime, stats } from 'yurst';
+import { bot, api, fmtUptime, stats } from 'yurst.js';
 
 // Команди
 bot.command('start', 'Почати роботу', (ctx) =>
@@ -283,7 +283,7 @@ bot.on('inline', (ctx) => {
 ## Обробка подій
 
 ```js
-import { L } from 'yurst';
+import { L } from 'yurst.js';
 
 bot.on('stopped', (update) => {
   L.info('bot', `User ${update.User?.ID} blocked the bot`);
@@ -334,7 +334,7 @@ bot.callback('admin', async (ctx) => {
 `ButtonsBuilder` формує рядки кнопок із динамічного списку. Тут до трьох кнопок додається в кожен рядок:
 
 ```js
-import { ButtonsBuilder, bot } from 'yurst';
+import { ButtonsBuilder, bot } from 'yurst.js';
 
 const products = Array.from({ length: 18 }, (_, index) => ({
   id: String(index + 1),

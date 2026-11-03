@@ -1,6 +1,20 @@
-# Yurst
 
-Yurst is a small ESM library for building [Yurba.one](https://yurba.one) bots with Node.js 22 or newer. It provides commands, inline buttons, reply keyboards, callback queries, inline mode, WebSocket updates and a long-polling fallback.
+<div align="center">
+  <br />
+  <p>
+    <h1> Yurst </h1>
+    A lightweight Node.js library for building Yurba.one bots
+  </p>
+  <br />
+  <p align="center">
+    <a href="https://github.com/rqxsts/yurst/stargazers"><img src="https://img.shields.io/github/stars/rqxsts/yurst?colorA=363a4f&colorB=b7bdf8&style=for-the-badge" alt="GitHub stars"/></a>  ˖
+    <a href="https://github.com/rqxsts/yurst/issues"><img src="https://img.shields.io/github/issues/rqxsts/yurst?colorA=363a4f&colorB=f5a97f&style=for-the-badge" alt="GitHub issues"/></a>  ˖
+    <a href="https://github.com/rqxsts/yurst/contributors"><img src="https://img.shields.io/github/contributors/rqxsts/yurst?colorA=363a4f&colorB=a6da95&style=for-the-badge" alt="GitHub contributors"/></a>
+  </p>
+  <p>
+    <a href="https://www.npmjs.com/package/yurst.js"><img src="https://img.shields.io/npm/v/yurst.js.svg?colorA=363a4f&colorB=a6da95&style=flat-square" alt="npm version"/></a>
+  </p>
+</div>
 
 ## Requirements
 
@@ -10,7 +24,7 @@ Yurst is a small ESM library for building [Yurba.one](https://yurba.one) bots wi
 ## Quick start
 
 ```sh
-npm install yurst
+npm install yurst.js
 ```
 
 Create `.env`:
@@ -20,7 +34,7 @@ TOKEN=b.your_bot_token
 ```
 
 ```js
-import { bot } from 'yurst';
+import { bot } from 'yurst.js';
 
 bot.command('ping', 'Connection check', (ctx) => ctx.reply('pong'));
 bot.command('help', 'List of commands', (ctx) => ctx.reply(ctx.help()));
@@ -38,7 +52,7 @@ node --env-file=.env index.js
 
 | Path | Purpose |
 | --- | --- |
-| `Yurst/` | The published `yurst` package |
+| `Yurst/` | The published `yurst.js` package |
 | `Example/` | Demo bot (`yarix`) using the package |
 | `Docs/` | Next.js + Fumadocs documentation site |
 

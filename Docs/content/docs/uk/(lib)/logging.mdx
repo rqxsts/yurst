@@ -57,7 +57,7 @@ LOG_FILE=bot.log
 Логер експортується як `L`:
 
 ```js
-import { L } from 'yurst';
+import { L } from 'yurst.js';
 
 L.info('tag', 'повідомлення');
 L.warn('tag', 'попередження');
@@ -87,7 +87,7 @@ L.error('db', 'Помилка підключення', err);
 `stats` — спільний об'єкт, який оновлюється під час роботи:
 
 ```js
-import { stats } from 'yurst';
+import { stats } from 'yurst.js';
 
 console.log(stats);
 // {
@@ -112,7 +112,7 @@ console.log(stats);
 ### Використання в команді
 
 ```js
-import { bot, stats, fmtUptime } from 'yurst';
+import { bot, stats, fmtUptime } from 'yurst.js';
 
 bot.command('stats', 'Статистика бота', (ctx) => {
   const lines = [
@@ -131,7 +131,7 @@ bot.command('stats', 'Статистика бота', (ctx) => {
 Повертає час роботи процесу у форматі `1h 23m 4s`:
 
 ```js
-import { fmtUptime } from 'yurst';
+import { fmtUptime } from 'yurst.js';
 
 console.log(fmtUptime());  // "2h 34m 12s"
 ```
@@ -143,7 +143,7 @@ console.log(fmtUptime());  // "2h 34m 12s"
 ## Приклад: Моніторинг здоров'я
 
 ```js
-import { bot, stats, fmtUptime, L } from 'yurst';
+import { bot, stats, fmtUptime, L } from 'yurst.js';
 
 // Періодичний звіт про здоров'я
 setInterval(() => {

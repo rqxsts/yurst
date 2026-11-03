@@ -14,6 +14,6 @@
   "author": "Rqxsts",
   "license": "MIT",
   "dependencies": {
-    "yurst": "workspace:*"
+    "yurst.js": "workspace:*"
   }
 }
