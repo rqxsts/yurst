@@ -1,0 +1,184 @@
+---
+title: Limitations
+description: What Yurst does not do yet and what to watch out for
+---
+
+# Limitations
+
+This list describes functionality that is **absent** in the current version of Yurst.
+
+<Callout type="warn" title="Implementation boundaries">
+  These are not bugs but deliberate limitations. If you need such behavior, implement it in your own code.
+</Callout>
+
+## Missing features
+
+### Commands
+
+| Limitation | Solution |
+| --- | --- |
+| `scope` is not checked locally | Check the chat type in the handler |
+| No built-in cooldown | Implement cooldown yourself |
+| No middleware for commands | Handle common logic at the start of the handler |
+
+### Messages
+
+| Limitation | Solution |
+| --- | --- |
+| `ctx.reply()` does not split long texts | Split messages yourself |
+| No method for deleting messages | Use `api('DELETE', ...)` |
+
+### Keyboards
+
+| Limitation | Solution |
+| --- | --- |
+| Only one markup at a time | Send two messages |
+| The reply keyboard is always `Once: true` | It cannot be changed |
+
+### Callback buttons
+
+| Limitation | Solution |
+| --- | --- |
+| Routing: only an exact match and a prefix up to `:` | Parse `ctx.data` yourself |
+| No validation of button actions | Specify one action (`data`/`url`/`copy`/`command`) |
+
+### Inline
+
+| Limitation | Solution |
+| --- | --- |
+| No result formatting (markdown) | — |
+| No photos/files in results | — |
+
+### Architecture
+
+| Limitation | Solution |
+| --- | --- |
+| `bot.start()` is not protected against a repeated call | Call it once |
+| No dependency injection | — |
+| No plugins | — |
+
+## Behavior nuances
+
+### Unknown commands
+
+```js
+bot.command('ping', 'Ping', (ctx) => ...);
+
+bot.on('message', (ctx) => {
+  // Сюди НЕ потрапить /ping
+  // Сюди НЕ потрапить /unknown
+});
+```
+
+An unknown command:
+- Is ignored
+- Does not reach `bot.on('message')`
+- Is logged in debug mode
+
+### Errors in handlers
+
+```js
+bot.on('message', async (ctx) => {
+  throw new Error('Помилка!');
+  // Наступний handler не викликається
+});
+
+bot.on('message', async (ctx) => {
+  // Цей код не виконається
+});
+```
+
+On error:
+- Processing of this update stops
+- Subsequent listeners are not called
+- The error is logged
+- The process keeps running
+
+### Concurrency
+
+```js
+let counter = 0;
+
+bot.on('message', async (ctx) => {
+  const c = counter++;
+  await new Promise(r => setTimeout(r, 1000));
+  // counter вже змінився іншим обробником!
+});
+```
+
+Different updates are processed **simultaneously**. If synchronization is needed:
+- Use queues
+- Use mutexes
+- Store state in a database with transactions
+
+### WebSocket
+
+| Situation | Behavior |
+| --- | --- |
+| Node.js < 22 without the `ws` package | Automatic switch to polling |
+| Authentication error (code 3000) | The process terminates |
+| `WS_MAX_FAILS` failed attempts | Automatic switch to polling |
+
+### 401 error
+
+With an invalid token:
+- `GET /bot/me` → 401 → the process terminates
+- WebSocket → code 3000 → the process terminates
+
+## Internal modules
+
+The public API is only the exports from `index.js`. The rest of the files under `src/` are internal implementation and may change without notice.
+
+## Tests
+
+The package contains unit tests for `ButtonsBuilder`, command name normalization, and markup generation:
+
+```sh
+npm test
+```
+
+There are no integration tests that contact the real Yurba API — to verify the transport and delivery, run the bot in dev mode.
+
+## Tips
+
+### Error handling
+
+```js
+bot.on('message', async (ctx) => {
+  try {
+    // Ваш код
+  } catch (err) {
+    L.error('handler', err);
+    await ctx.reply('Сталася помилка. Спробуйте пізніше.');
+  }
+});
+```
+
+### Checking scope
+
+The library does not provide a ready-made "private chat" flag. If you need a local check, take the raw dialog object from `ctx.message.Dialog` and look at its `Type` field in a real update (for example, by enabling `YURST=dev`). The set of values is determined by Yurba, so do not rely on a guessed dialog ID format.
+
+### Cooldown
+
+```js
+const cooldowns = new Map();
+
+bot.on('message', (ctx) => {
+  const userId = ctx.user?.ID;
+  const now = Date.now();
+  const last = cooldowns.get(userId) ?? 0;
+
+  if (now - last < 1000) {  // 1 секунда
+    return;  // Ігноруємо
+  }
+
+  cooldowns.set(userId, now);
+  // Обробка
+});
+```
+
+## Next
+
+<Card href="./examples" title="Examples">
+  Ready-made scenarios for copying
+</Card>

@@ -1,0 +1,228 @@
+---
+title: Update transport
+description: WebSocket, long polling, reconnections, and deduplication
+---
+
+# Update transport
+
+Yurst receives updates from Yurba via WebSocket or long polling. The mode is selected by the `MODE` variable.
+
+## WebSocket
+
+The default mode (`MODE=ws`).
+
+### Requirements
+
+Yurst uses the global `WebSocket` from Node.js 22+:
+
+```js
+// Node.js 22+: нативний WebSocket
+globalThis.WebSocket // доступний
+
+// Node.js < 22: потрібен пакет ws
+import { WebSocket } from 'ws';
+```
+
+<Callout title="The ws package">
+  `ws` is not included in Yurst's dependencies. For Node.js < 22:
+  ```sh
+  npm install ws
+  ```
+</Callout>
+
+### Protocol
+
+**Connection:**
+
+```
+wss://api.yurba.one/ws?token=b.xxxx
+```
+
+**Greeting:**
+
+After the socket opens, Yurba sends JSON:
+
+```json
+{
+  "ok": 1,
+  "version": "1.2.3"
+}
+```
+
+**Updates:**
+
+```json
+{
+  "Type": "update",
+  "Message": { /* сире оновлення */ }
+}
+```
+
+**Authentication error:**
+
+```json
+{
+  "ok": 0,
+  "error": "..."
+}
+```
+
+The socket closes with code `3000`, and the process terminates.
+
+### Reconnect with exponential backoff
+
+On connection loss:
+
+1. Delay from 1 to 30 seconds
+2. Random jitter up to 25%
+3. Delay doubles on each failure
+4. Counter resets after a successful connection >10 seconds
+
+```
+[info]  ws connecting… (attempt 1)
+[info]  ws socket open — waiting for greeting…
+[info]  ws connected — server 1.2.3
+...
+[warn] ws closed — code=1006 lived=5m frames=1523
+[info]  ws reconnecting in 2000ms…
+```
+
+### Fallback to polling
+
+When the number of short failed connections reaches `WS_MAX_FAILS`:
+
+```
+[warn] ws 5 failed connections in a row — falling back to polling
+[info] poll long polling started
+```
+
+Settings:
+- `WS_MAX_FAILS=5` — number of attempts (0 = unlimited)
+- `WS_IDLE_MS=0` — inactivity watchdog (0 = disabled)
+
+### Inactivity watchdog
+
+If `WS_IDLE_MS > 0`, the socket is closed when there are no frames:
+
+```dotenv
+WS_IDLE_MS=30000  # 30 секунд без активності → reconnect
+```
+
+## Long Polling
+
+```dotenv
+MODE=poll
+```
+
+Or automatically when WebSocket is unavailable.
+
+### How it works
+
+1. The bot makes `GET /bot/updates?timeout=30`
+2. The server holds the connection for up to 30 seconds
+3. If updates are available — it returns an array
+4. The bot processes them and advances the `offset`
+
+### Offset
+
+After receiving a batch of updates:
+
+```js
+offset = Math.max(offset, max(update.ID) + 1);
+```
+
+This confirms to the server that the updates have been processed.
+
+### Retries
+
+On errors:
+
+- Backoff from 1 to 30 seconds
+- For HTTP 429 — a minimum of 5 seconds
+- For HTTP 401 — process termination
+
+```
+[warn] poll request failed (503) — retrying in 2000ms
+```
+
+## Mode comparison
+
+| Characteristic | WebSocket | Long Polling |
+| --- | --- | --- |
+| Latency | Minimal | Depends on `POLL_TIMEOUT_S` |
+| Resources | One connection | Periodic HTTP requests |
+| Configuration | `MODE=ws` | `MODE=poll` |
+| Fallback | Automatic to polling | None |
+| Node.js | 22+ or the `ws` package | Any version |
+
+## Update deduplication
+
+On reconnect, WebSocket may resend the latest updates.
+
+Yurst uses an LRU cache of the last ~1000 IDs:
+
+```js
+if (seen.has(update.ID)) {
+  stats.dupes++;
+  return; // пропускаємо дубль
+}
+seen.add(update.ID);
+```
+
+## Processing concurrency
+
+The transport **does not wait** for a handler to finish before taking the next update.
+
+```js
+// Оновлення обробляються паралельно
+bot.on('message', async (ctx) => {
+  await new Promise(r => setTimeout(r, 5000));
+  // За цей час могло прийти 10+ нових повідомлень
+});
+```
+
+All active promises are tracked via the `inflight` Set for graceful shutdown.
+
+<Callout>
+  If handlers share state (a Map, variables), do not assume sequential execution. Use queues or mutexes if needed.
+</Callout>
+
+## Configuration
+
+### WebSocket
+
+```dotenv
+MODE=ws
+WS_MAX_FAILS=5     # спроб до fallback
+WS_IDLE_MS=0       # watchdog (0 = вимкнено)
+```
+
+### Polling
+
+```dotenv
+MODE=poll
+POLL_TIMEOUT_S=30  # таймаут на сервері
+```
+
+### HTTP
+
+```dotenv
+API_TIMEOUT_MS=10000  # таймаут запитів
+MAX_TEXT=4000         # макс. довжина повідомлення
+```
+
+## Diagnostics
+
+In dev mode (`YURST=dev`), the transport logs details:
+
+```
+[debug] ws frame #1523 { ok: 1, version: "1.2.3" }
+[debug] ws frame #1524 { Type: "update", Message: {...} }
+[info]  update #12345 via=ws lag=1s | message /ping
+```
+
+## Next
+
+<Card href="./api-client" title="HTTP client">
+  Low-level requests to the Yurba API
+</Card>

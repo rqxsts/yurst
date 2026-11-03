@@ -1,0 +1,347 @@
+---
+title: API Reference
+description: All exports, bot methods, contexts, and package structure
+---
+
+# API Reference
+
+## Public exports
+
+```js
+import { bot, ButtonsBuilder, api, L, fmtUptime, stats } from 'yurst';
+```
+
+| Export | Type | Purpose |
+| --- | --- | --- |
+| `bot` | `Bot` | Singleton for registering commands, callbacks, and events |
+| `ButtonsBuilder` | `class` | Builder for inline button rows |
+| `api` | `function` | Low-level HTTP requests to the Yurba API |
+| `L` | `Logger` | Logger with the `debug`, `info`, `warn`, `error` methods |
+| `fmtUptime` | `function` | Formats uptime: `"1h 23m 4s"` |
+| `stats` | `object` | Counters: `updates`, `errors`, `apiCalls`, `apiErrors`, `dupes` |
+
+<Callout>
+  Subpaths (`yurst/src/...`) are not exported. The package is available only through the root `'yurst'`.
+</Callout>
+
+## bot — Core API
+
+### Registration methods
+
+#### command(nameOrObj, descOrHandler?, handler?, opts?)
+
+Registers a slash command.
+
+**Short form:**
+```js
+bot.command('ping', 'Опис', (ctx) => ctx.reply('pong'));
+```
+
+**Object form:**
+```js
+bot.command({
+  name: 'city',
+  description: 'Обрати місто',
+  scope: 'private',      // 'all' | 'private' | 'groups'
+  register: true,        // чи реєструвати в Yurba
+  run: (ctx) => ctx.reply('Місто?'),
+});
+```
+
+#### callback(pattern, handler)
+
+Registers a callback button handler.
+
+```js
+bot.callback('menu:open', async (ctx) => {
+  await ctx.answer();
+  await ctx.replace('Відкрито');
+});
+```
+
+Routing:
+- Exact match: `ctx.data === pattern`
+- Prefix: `ctx.data.startsWith(pattern + ':')`
+
+#### on(event, handler)
+
+Subscribes to an event.
+
+```js
+bot.on('message', (ctx) => { ... });
+bot.on('inline', (ctx) => { ... });
+bot.on('stopped', (update) => { ... });
+```
+
+### Properties
+
+#### bot.me
+
+Bot information (available after `start()`).
+
+```js
+bot.me.data      // Об'єкт User або null
+bot.me.name      // Ім'я або null
+bot.me.link      // Username без @ або null
+bot.me.id        // ID або null
+bot.me.invite()  // URL для запуску бота
+bot.me.invite('ref')  // URL з параметром
+```
+
+### Lifecycle methods
+
+#### start()
+
+Starts the bot.
+
+```js
+await bot.start();  // Не завершується у звичайному режимі
+```
+
+Performs:
+1. Authentication (`GET /bot/me`)
+2. Command registration (`PUT /bot/commands`)
+3. Transport start (WebSocket or polling)
+
+---
+
+## MessageContext
+
+Passed to commands and `bot.on('message')`.
+
+### Fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `update` | `object` | Raw Yurba update |
+| `message` | `object` | Message object |
+| `user` | `object \| null` | Message author |
+| `dialog` | `string \| null` | Dialog ID |
+| `args` | `string` | Command arguments |
+| `payload` | `string` | Deep-link parameter |
+
+### Methods
+
+#### reply(text, options?)
+
+```js
+await ctx.reply('Текст', {
+  buttons: [[{ text: 'OK', data: 'ok' }]],
+  keyboard: [['Так', 'Ні']],
+  removeKeyboard: true,
+  replyTo: null,
+});
+```
+
+#### send(text, options?)
+
+```js
+await ctx.send('Текст', { buttons: [...] });
+```
+
+#### typing()
+
+```js
+await ctx.typing();
+```
+
+#### help()
+
+```js
+const text = ctx.help();  // Список всіх команд
+```
+
+---
+
+## CallbackContext
+
+Passed to `bot.callback()`.
+
+### Fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `update` | `object` | Raw update |
+| `callback` | `object` | Callback object |
+| `user` | `object \| null` | Who pressed |
+| `dialog` | `string \| null` | Dialog ID |
+| `message` | `object \| null` | Message with the button |
+| `data` | `string` | Button data |
+
+### Methods
+
+#### answer(textOrOpts?)
+
+```js
+await ctx.answer();
+await ctx.answer('Збережено');
+await ctx.answer({ text: 'Увага!', alert: true });
+```
+
+#### replace(text, options?)
+
+```js
+await ctx.replace('Новий текст', { buttons: [...] });
+```
+
+#### editMarkup(options?)
+
+```js
+await ctx.editMarkup({ buttons: [...] });
+await ctx.editMarkup({ removeKeyboard: true });
+```
+
+#### reply(text, options?)
+
+```js
+await ctx.reply('Додаткове повідомлення');
+```
+
+---
+
+## InlineContext
+
+Passed to `bot.on('inline')`.
+
+### Fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `update` | `object` | Raw update |
+| `user` | `object \| null` | Who made the request |
+| `query` | `string` | Request text |
+
+### Methods
+
+#### answer(results)
+
+```js
+await ctx.answer([
+  { id: '1', title: 'Заголовок', text: 'Текст' },
+]);
+```
+
+---
+
+## Reply options
+
+Accepted by `reply()`, `send()`, `replace()`, `editMarkup()`.
+
+```ts
+interface ReplyOptions {
+  buttons?: ButtonRow[];      // Inline-кнопки
+  keyboard?: string[][];      // Reply-клавіатура
+  placeholder?: string;       // Підказка для reply-клавіатури
+  removeKeyboard?: boolean;   // Прибрати клавіатуру
+}
+```
+
+Only `ctx.reply()` additionally accepts `replyTo?: string | null` — the ID of the message to quote. Pass `replyTo: null` to send a reply without a quote.
+
+### ButtonRow
+
+```ts
+type ButtonRow = Array<{
+  text: string;
+  data?: string;      // Callback-кнопка
+  url?: string;       // Посилання
+  app?: string;       // Мінізастосунок
+  copy?: string;      // Копіювання
+  command?: string;   // Команда
+  style?: 'primary' | 'success' | 'danger';
+}>;
+```
+
+---
+
+## ButtonsBuilder
+
+```js
+const buttons = new ButtonsBuilder()
+  .row()
+  .link('Документація', 'https://yurba.one')
+  .command('Допомога', '/help')
+  .row()
+  .callback('Підтвердити', 'confirm').success()
+  .callback('Скасувати', 'cancel').danger()
+  .build();
+
+await ctx.reply('Оберіть:', { buttons });
+```
+
+| Method | Purpose |
+| --- | --- |
+| `row()` | Start a new row |
+| `link(text, url)` | Add a link button |
+| `command(text, command)` | Add a command button |
+| `callback(text, data)` | Add a callback button; `btn()` is an alias |
+| `copy(text, value)` | Add a copy button |
+| `primary()`, `success()`, `danger()` | Apply a style to the last button |
+| `gray()` | Reset the explicit style of the last button |
+| `build()` | Get `ButtonRow[]` for context methods |
+| `buildMarkup()` | Get the Yurba object `{ Inline: [...] }` |
+
+For large lists, create rows while iterating over the data. A complete example is in the [callback buttons guide](./callbacks#buttonsbuilder).
+
+## ApiResponse
+
+Returned by all sending methods and `api()`.
+
+```ts
+interface ApiResponse {
+  status: number;   // HTTP-статус
+  ok: boolean;      // true для 200-299
+  data: any;        // Тіло відповіді
+  ms: number;       // Час виконання в мс
+}
+```
+
+---
+
+## Configuration
+
+Environment variables:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `TOKEN` | required | Bot token |
+| `MODE` | `ws` | Transport mode |
+| `YURST` | — | `dev` for debug mode |
+| `YURST_LOG` | `info` | Log level |
+| `LOG_FILE` | — | Log file |
+| `WS_IDLE_MS` | `0` | WebSocket watchdog |
+| `WS_MAX_FAILS` | `5` | Attempts before fallback |
+| `MAX_TEXT` | `4000` | Max message length |
+| `API_TIMEOUT_MS` | `10000` | HTTP timeout |
+| `POLL_TIMEOUT_S` | `30` | Polling timeout |
+| `YURST_ENV_FILE` | — | Additional path to `.env` |
+
+---
+
+## Requirements
+
+- **Node.js**: >= 22
+- **Module**: ESM (`"type": "module"`)
+- **Dependencies**: 0 (runtime)
+
+---
+
+## Package structure (internal)
+
+| File | Purpose |
+| --- | --- |
+| `index.js` | Public exports |
+| `src/bot.js` | Bot class, singleton, routing |
+| `src/context.js` | MessageContext, CallbackContext, InlineContext |
+| `src/api.js` | HTTP client |
+| `src/config.js` | Configuration loading |
+| `src/state.js` | Global state, stats, uptime |
+| `src/logger.js` | Logger |
+| `src/transport/ws.js` | WebSocket transport |
+| `src/transport/poll.js` | Long polling transport |
+| `src/builders/buttons.js` | `ButtonsBuilder` implementation |
+| `src/builder.js` | Compatibility re-export of `ButtonsBuilder` |
+
+<Callout type="warn">
+  Internal files are not part of the public API. They may change without notice.
+</Callout>

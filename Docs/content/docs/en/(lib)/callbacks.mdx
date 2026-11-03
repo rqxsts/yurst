@@ -1,0 +1,334 @@
+---
+title: Callback buttons
+description: Inline buttons, handling presses, updating messages
+---
+
+# Callback buttons
+
+Inline buttons are displayed under a message and allow the user to interact with the bot without entering text.
+
+## Creating buttons
+
+Buttons are passed in the `buttons` option of the `reply()` and `send()` methods:
+
+```js
+ctx.reply('Меню', {
+  buttons: [
+    [
+      { text: 'Відкрити', data: 'menu:open', style: 'primary' },
+      { text: 'Документація', url: 'https://yurba.one' },
+    ],
+    [{ text: 'Копіювати', copy: 'текст для копіювання' }],
+    [{ text: 'Команда', command: '/help' }],
+  ],
+});
+```
+
+### Structure
+
+`buttons` is an array of rows, where each row is an array of buttons.
+
+```js
+buttons: [
+  [button1, button2],  // перший рядок
+  [button3],           // другий рядок
+]
+```
+
+## Button types
+
+| Action | Field | Description |
+| --- | --- | --- |
+| Callback | `data` | Sends a callback to the bot |
+| Link | `url` | Opens a URL in the browser |
+| Copy | `copy` | Copies the value to the clipboard |
+| Command | `command` | Executes a slash command |
+
+### Callback button
+
+The most common type. When pressed, the bot receives a callback event:
+
+```js
+ctx.reply('Оберіть дію:', {
+  buttons: [
+    [
+      { text: 'Підтвердити', data: 'confirm', style: 'success' },
+      { text: 'Скасувати', data: 'cancel', style: 'danger' },
+    ],
+  ],
+});
+```
+
+### Link button
+
+Opens a URL when pressed:
+
+```js
+ctx.reply('Корисні посилання:', {
+  buttons: [
+    [{ text: 'Yurba', url: 'https://yurba.one' }],
+    [{ text: 'Документація', url: 'https://docs.yurba.one' }],
+  ],
+});
+```
+
+### Copy button
+
+Copies the value to the clipboard:
+
+```js
+ctx.reply('Скопіюйте промокод:', {
+  buttons: [
+    [{ text: 'Скопіювати', copy: 'PROMO2024' }],
+  ],
+});
+```
+
+### Command button
+
+Executes a slash command:
+
+```js
+ctx.reply('Швидкі дії:', {
+  buttons: [
+    [{ text: 'Допомога', command: '/help' }],
+    [{ text: 'Налаштування', command: '/settings' }],
+  ],
+});
+```
+
+## Button styles
+
+The optional `style` field changes the appearance of the button:
+
+| Style | Appearance |
+| --- | --- |
+| `'primary'` | Primary action (highlighted) |
+| `'success'` | Confirmation (green) |
+| `'danger'` | Dangerous action (red) |
+
+```js
+ctx.reply('Видалити елемент?', {
+  buttons: [
+    [
+      { text: 'Так', data: 'delete:yes', style: 'danger' },
+      { text: 'Ні', data: 'delete:no', style: 'primary' },
+    ],
+  ],
+});
+```
+
+<Callout type="warn" title="One action per button">
+  Yurst does not check that the fields are mutually exclusive. Specify exactly one action (`data`, `url`, `copy`, or `command`) per button.
+</Callout>
+
+## ButtonsBuilder
+
+For menus with many buttons, it is convenient to use the builder from the package's public export:
+
+```js
+import { ButtonsBuilder } from 'yurst';
+
+const buttons = new ButtonsBuilder()
+  .row()
+  .link('Документація', 'https://yurba.one')
+  .command('Допомога', '/help')
+  .row()
+  .callback('Підтвердити', 'action:confirm').success()
+  .callback('Скасувати', 'action:cancel').danger()
+  .build();
+
+await ctx.reply('Оберіть дію:', { buttons });
+```
+
+`row()` starts a new row. Add buttons with the `link(text, url)`, `command(text, command)`, `callback(text, data)`, or `copy(text, value)` methods. `btn()` and `cmd()` are short aliases for `callback()` and `command()`.
+
+Style methods apply to the **last added button**:
+
+| Method | Effect |
+| --- | --- |
+| `.primary()` | Primary action |
+| `.success()` | Successful action |
+| `.danger()` | Dangerous action |
+| `.gray()` | Resets the explicit style to the default appearance |
+
+`build()` returns an array of rows for `ctx.reply()` and `ctx.send()`. `buildMarkup()` returns the Yurba format `{ Inline: [...] }`.
+
+### Building from data
+
+In a loop, call `row()` before the button that should start a new row:
+
+```js
+const items = Array.from({ length: 12 }, (_, index) => ({
+  id: String(index + 1),
+  name: `Елемент ${index + 1}`,
+}));
+
+const menu = new ButtonsBuilder();
+items.forEach((item, index) => {
+  if (index % 3 === 0) menu.row();
+  menu.callback(item.name, `item:${item.id}`).gray();
+});
+
+await ctx.reply(`Знайдено: ${items.length}`, { buttons: menu.build() });
+```
+
+## Handling presses
+
+### Registering a handler
+
+```js
+bot.callback('menu:open', async (ctx) => {
+  await ctx.answer();
+  await ctx.replace('Меню відкрито!');
+});
+```
+
+### Routing rules
+
+`bot.callback(pattern, handler)` fires when `ctx.data`:
+
+1. Equals `pattern` exactly
+2. Starts with `pattern + ':'`
+
+| Pattern | `ctx.data` | Match |
+| --- | --- | --- |
+| `'menu'` | `'menu'` | ✅ |
+| `'menu'` | `'menu:open'` | ✅ |
+| `'menu'` | `'menux'` | ❌ |
+| `'menu:open'` | `'menu:open'` | ✅ |
+| `'menu:open'` | `'menu:open:extra'` | ✅ |
+
+The **first registered** match wins.
+
+### Unhandled callbacks
+
+If no handler matches, Yurst automatically calls `ctx.answer()` to remove the loading indicator from the button.
+
+## Responding to a press
+
+### ctx.answer()
+
+**Always call it first**, before heavy operations!
+
+```js
+await ctx.answer();                              // зняти індикатор
+await ctx.answer('Збережено!');                  // toast-повідомлення
+await ctx.answer({ text: 'Увага!', alert: true }); // модальне вікно
+await ctx.answer({ url: 'https://yurba.one' });   // відкрити URL
+```
+
+<Callout type="warn" title="8 second timeout">
+  The server waits for a response for ~8 seconds. Always call `answer()` before long operations. Repeated calls are safe — they are ignored.
+</Callout>
+
+## Updating a message
+
+### ctx.replace(text, options)
+
+Replaces the text of the message with the button:
+
+```js
+bot.callback('counter:inc', async (ctx) => {
+  await ctx.answer();
+  await ctx.replace('Лічильник: 5', {
+    buttons: [[{ text: '+', data: 'counter:inc' }]],
+  });
+});
+```
+
+Throws an error if `ctx.message` is missing.
+
+### ctx.editMarkup(options)
+
+Changes only the buttons:
+
+```js
+await ctx.editMarkup({
+  buttons: [[{ text: 'Оновлено', data: 'updated' }]],
+});
+
+// Прибрати кнопки
+await ctx.editMarkup({ removeKeyboard: true });
+```
+
+## Example: Counter
+
+```js
+const counters = new Map();
+
+const view = (n) => [
+  [
+    { text: '−', data: 'cnt:dec', style: 'danger' },
+    { text: String(n), data: 'cnt:noop' },
+    { text: '+', data: 'cnt:inc', style: 'success' },
+  ],
+  [{ text: 'Скинути', data: 'cnt:reset', style: 'primary' }],
+];
+
+bot.command('counter', 'Лічильник', (ctx) =>
+  ctx.reply('Лічильник: 0', { buttons: view(0) }),
+);
+
+bot.callback('cnt', async (ctx) => {
+  await ctx.answer();
+
+  const id = ctx.message?.ID;
+  const action = ctx.data.split(':')[1];
+  let n = counters.get(id) ?? 0;
+
+  switch (action) {
+    case 'inc': n++; break;
+    case 'dec': n--; break;
+    case 'reset': n = 0; break;
+  }
+
+  if (id) counters.set(id, n);
+  await ctx.replace(`Лічильник: ${n}`, { buttons: view(n) });
+});
+```
+
+<Callout>
+  State is stored in the process memory. After the bot restarts, the data disappears. For persistent storage, use a database.
+</Callout>
+
+## Example: Pagination
+
+```js
+const items = ['Яблуко', 'Банан', 'Апельсин', 'Груша', 'Кавун'];
+
+const view = (page, total) => {
+  const btns = [
+    [
+      { text: '◀', data: `page:${page - 1}` },
+      { text: `${page + 1}/${total}`, data: 'page:noop' },
+      { text: '▶', data: `page:${page + 1}` },
+    ],
+  ];
+  return btns;
+};
+
+bot.command('list', 'Список фруктів', (ctx) => {
+  const totalPages = Math.ceil(items.length / 1);
+  const item = items[0];
+  return ctx.reply(item, { buttons: view(0, totalPages) });
+});
+
+bot.callback('page', async (ctx) => {
+  await ctx.answer();
+
+  const page = parseInt(ctx.data.split(':')[1]);
+  const totalPages = Math.ceil(items.length / 1);
+
+  if (page < 0 || page >= totalPages) return;
+
+  const item = items[page];
+  await ctx.replace(item, { buttons: view(page, totalPages) });
+});
+```
+
+## Next
+
+<Card href="./keyboards" title="Reply keyboards">
+  Text keyboards for choosing from ready-made options
+</Card>

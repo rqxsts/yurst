@@ -1,0 +1,201 @@
+---
+title: Життєвий цикл
+description: Запуск, graceful shutdown та інформація про бота
+---
+
+# Життєвий цикл
+
+## bot.start()
+
+```js
+await bot.start();
+```
+
+Виконує послідовність кроків для запуску бота:
+
+### 1. Реєстрація сигналів
+
+Підписується на системні сигнали:
+- `SIGINT` — Ctrl+C у терміналі
+- `SIGTERM` — команда завершення процесу
+- `unhandledRejection` — необроблені проміси
+
+### 2. Автентифікація
+
+Виконує `GET /bot/me`:
+- Перевіряє валідність токена
+- Отримує дані про бота
+- Зберігає результат у `bot.me`
+
+Якщо статус `401` — процес завершується з помилкою.
+
+### 3. Реєстрація команд
+
+Виконує `PUT /bot/commands` зі списком команд:
+- Надсилає лише команди з `register !== false`
+- Формат: `{ Command, Description, Scope }`
+- Порожній список очищує зареєстровані команди
+
+### 4. Перевірка доставки
+
+Виконує `GET /bot/delivery`:
+- Перевіряє режим доставки оновлень
+- Логує результат
+
+### 5. Запуск транспорту
+
+Відповідно до `MODE`:
+- `ws` — WebSocket з fallback на polling
+- `poll` — одразу polling
+
+<Callout type="warn" title="Реєструйте до старту">
+  Команди, callback-и та listeners додавайте **до** `await bot.start()`. Список команд надсилається в Yurba під час старту.
+</Callout>
+
+У звичайній роботі `bot.start()` **не завершується** — бот нескінченно отримує оновлення.
+
+## bot.me — інформація про бота
+
+Після успішного старту доступний getter `bot.me`:
+
+```js
+bot.me.data           // Повний об'єкт User або null
+bot.me.name           // Ім'я бота або null
+bot.me.link           // Username без @ або null
+bot.me.id             // Числовий ID або null
+bot.me.invite()       // https://yurba.one/messenger?bot=username
+bot.me.invite('ref')  // https://yurba.one/messenger?bot=username&start=ref
+```
+
+### Приклад використання
+
+```js
+bot.command('info', 'Інформація про бота', (ctx) => {
+  const info = [
+    `Ім'я: ${bot.me.name}`,
+    `Username: @${bot.me.link}`,
+    `ID: ${bot.me.id}`,
+  ].join('\n');
+
+  return ctx.reply(info);
+});
+
+bot.command('invite', 'Запросити друзів', (ctx) => {
+  const ref = ctx.user?.ID ?? '';
+  return ctx.reply(`Поширь це посилання:\n${bot.me.invite(`ref_${ref}`)}`);
+});
+```
+
+<Callout type="warn" title="Звертайтеся в обробниках">
+  До завершення запиту `/bot/me` поля `bot.me` дорівнюють `null`. Використовуйте `bot.me` в обробниках, а не на верхньому рівні модуля.
+</Callout>
+
+<Callout title="Кодування payload">
+  `bot.me.invite(payload)` не кодує значення автоматично. Якщо payload може містити спецсимволи:
+  ```js
+  bot.me.invite(encodeURIComponent(payload));
+  ```
+</Callout>
+
+## Завершення роботи (Graceful Shutdown)
+
+При отриманні сигналу завершення (`SIGINT` / `SIGTERM`):
+
+### 1. Зупинка прийому
+
+Перестає приймати нові оновлення від транспорту.
+
+### 2. Закриття WebSocket
+
+Закриває активне WebSocket-з'єднання.
+
+### 3. Очікування обробників
+
+Чекає на завершення обробників, що вже виконуються:
+- Не довше **5 секунд**
+- Відстежує всі активні Promise через `inflight` Set
+
+### 4. Завершення процесу
+
+Після очікування або таймауту — `process.exit(0)`.
+
+```js
+// Логи при завершенні:
+// [info] bot SIGINT: shutting down, inflight=2
+// [info] bot stopped after 2h 34m 12s
+```
+
+<Callout>
+  Робіть обробники перериваними або короткими. Довгі операції (>5с) будуть перервані при завершенні.
+</Callout>
+
+## Статистика роботи
+
+Yurst веде лічильники:
+
+```js
+import { stats, fmtUptime } from 'yurst';
+
+console.log(stats);
+// {
+//   updates: 1523,
+//   errors: 2,
+//   apiCalls: 1540,
+//   apiErrors: 0,
+//   dupes: 3
+// }
+
+console.log(fmtUptime());
+// "2h 34m 12s"
+```
+
+| Поле | Опис |
+| --- | --- |
+| `updates` | Отримано оновлень |
+| `errors` | Помилок в обробниках |
+| `apiCalls` | HTTP-запитів до API |
+| `apiErrors` | Невдалих HTTP-запитів |
+| `dupes` | Дублікатів оновлень |
+
+## Приклад повного циклу
+
+```js
+import { bot, stats, fmtUptime } from 'yurst';
+
+// Реєстрація (до старту!)
+bot.command('start', 'Почати', (ctx) => {
+  const ref = ctx.payload || 'direct';
+  return ctx.reply(`Вітаємо! Реферал: ${ref}`);
+});
+
+bot.command('stats', 'Статистика', (ctx) => {
+  const info = [
+    `Оновлень: ${stats.updates}`,
+    `Помилок: ${stats.errors}`,
+    `Аптайм: ${fmtUptime()}`,
+  ].join('\n');
+  return ctx.reply(info);
+});
+
+// Старт
+console.log('Starting bot...');
+await bot.start();
+```
+
+## Один запуск на процес
+
+`bot.start()` розрахований на **один** виклик за життя процесу:
+
+- Немає захисту від повторного виклику
+- Повторна реєстрація сигналів призведе до дублювання обробників
+- Для перезапуску використовуйте process manager (PM2, Docker тощо)
+
+<Callout type="warn">
+  Не викликайте `bot.start()` кілька разів. Перезапустіть процес для оновлення коду.
+</Callout>
+
+## Далі
+
+<Card href="./transport" title="Транспорт">
+  WebSocket, long polling та деталі отримання оновлень
+</Card>

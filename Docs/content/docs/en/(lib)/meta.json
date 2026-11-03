@@ -1,0 +1,26 @@
+{
+  "title": "Yurst",
+  "description": "Documentation for the Yurst library for creating bots on Yurba.one",
+  "root": true,
+  "pages": [
+    "---Introduction---",
+    "index",
+    "configuration",
+    "---Basics---",
+    "commands",
+    "contexts",
+    "callbacks",
+    "keyboards",
+    "inline",
+    "events",
+    "---Under the Hood---",
+    "lifecycle",
+    "transport",
+    "api-client",
+    "logging",
+    "---Reference---",
+    "types",
+    "limitations",
+    "..."
+  ]
+}

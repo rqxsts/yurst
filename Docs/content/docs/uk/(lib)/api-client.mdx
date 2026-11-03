@@ -1,0 +1,191 @@
+---
+title: HTTP-клієнт
+description: Низькорівневі запити до Yurba API
+---
+
+# HTTP-клієнт
+
+Для запитів, яких немає в методах контекстів, Yurst експортує функцію `api`.
+
+## Використання
+
+```js
+import { api } from 'yurst';
+
+const res = await api('GET', '/bot/me');
+
+if (!res.ok) {
+  console.error('Помилка запиту:', res.status, res.data);
+}
+```
+
+## Сигнатура
+
+```js
+api(method, path, body?, options?)
+```
+
+| Параметр | Тип | Опис |
+| --- | --- | --- |
+| `method` | `'GET' \| 'POST' \| 'PUT' \| 'PATCH' \| 'DELETE'` | HTTP-метод |
+| `path` | `string` | Шлях API, наприклад `/bot/me` |
+| `body` | `object` | Тіло запиту (автоматично серіалізується в JSON) |
+| `options` | `{ timeout?, retried? }` | Додаткові опції |
+
+### Автоматичні заголовки
+
+```
+Authorization: Bot <TOKEN>
+Content-Type: application/json
+```
+
+### Базовий URL
+
+```
+https://api.yurba.one
+```
+
+## Відповідь
+
+```ts
+interface ApiResponse {
+  status: number;   // HTTP-статус; 0 при помилці fetch
+  ok: boolean;      // true лише для статусів 200-299
+  data: any;        // JSON, текст або { error: string }
+  ms: number;       // Час виконання в мс
+}
+```
+
+```js
+const res = await api('GET', '/bot/me');
+
+console.log(res.status);  // 200
+console.log(res.ok);      // true
+console.log(res.data);    // { User: { ID: 123, Name: 'Bot', ... } }
+console.log(res.ms);      // 156
+```
+
+<Callout>
+  Функція **не кидає винятків** при мережевих помилках чи таймаутах. Замість цього повертається `status: 0` та `ok: false`. Завжди перевіряйте `ok`.
+</Callout>
+
+## Таймаути
+
+| Тип запиту | Таймаут |
+| --- | --- |
+| Звичайний | `API_TIMEOUT_MS` (за замовчуванням 10000 мс) |
+| Long polling (`/bot/updates`) | `POLL_TIMEOUT_S + 15` секунд |
+| Кастомний | Передайте `timeout` в опціях |
+
+```js
+const res = await api('GET', '/bot/me', undefined, { timeout: 5000 });
+```
+
+## Повторні спроби (Retry)
+
+При HTTP `429` (Rate Limit):
+1. Зчитується заголовок `Retry-After` (за замовчуванням 1 секунда)
+2. Додається випадковий jitter до 25%
+3. Робиться **один** повторний запит
+
+```
+[warn] api 429 rate-limit — waiting 1500ms before retry
+```
+
+## Приклади використання
+
+### Перевірка затримки
+
+```js
+bot.command('ping', 'Перевірка зв\'язку', async (ctx) => {
+  const start = Date.now();
+  const res = await api('GET', '/bot/me');
+  const latency = Date.now() - start;
+
+  if (res.ok) {
+    return ctx.reply(`API: ${latency}ms`);
+  }
+  return ctx.reply(`Помилка: ${res.status}`);
+});
+```
+
+### Отримання інформації про користувача
+
+```js
+bot.command('user', 'Інформація про користувача', async (ctx) => {
+  const userId = ctx.args;
+  if (!userId) return ctx.reply('Використання: /user <id>');
+
+  const res = await api('GET', `/users/${userId}`);
+
+  if (!res.ok) {
+    return ctx.reply(`Користувача не знайдено`);
+  }
+
+  const user = res.data;
+  return ctx.reply(`Ім'я: ${user.Name}\nID: ${user.ID}`);
+});
+```
+
+### Надсилання повідомлення в інший діалог
+
+```js
+const res = await api('POST', `/dialogs/${dialogId}/messages`, {
+  text: 'Привіт!',
+});
+```
+
+### Видалення повідомлення
+
+```js
+const res = await api('DELETE', `/dialogs/messages/${messageId}?scope=everyone`);
+```
+
+## Внутрішні функції
+
+У `src/api.js` є допоміжні функції, які **не експортуються**:
+
+| Функція | Призначення |
+| --- | --- |
+| `splitText(text, max)` | Розбиває текст на частини |
+| `send(dialogId, text, opts)` | Надсилає повідомлення з авт. розбиттям |
+| `sendTyping(dialogId)` | Показує індикатор набору |
+| `deleteMessage(messageId)` | Видаляє повідомлення |
+| `updateMarkup(messageId, markup)` | Оновлює клавіатуру |
+| `answerCallback(callbackId, body)` | Відповідає на callback |
+| `answerInline(queryId, results)` | Відповідає на inline-запит |
+
+<Callout type="warn">
+  Ці функції не є публічним API і можуть змінитися. Використовуйте методи контекстів (`ctx.reply()`, `ctx.answer()` тощо).
+</Callout>
+
+## Обробка помилок
+
+```js
+const res = await api('GET', '/some/endpoint');
+
+if (!res.ok) {
+  // Перевіряємо тип помилки
+  if (res.status === 0) {
+    console.error('Мережева помилка або таймаут');
+  } else if (res.status === 401) {
+    console.error('Помилка автентифікації');
+  } else if (res.status === 404) {
+    console.error('Ресурс не знайдено');
+  } else if (res.status === 429) {
+    console.error('Перевищено ліміт запитів');
+  } else {
+    console.error('Помилка API:', res.status, res.data);
+  }
+  return;
+}
+
+// Успішна відповідь
+console.log(res.data);
+```
+
+## Далі
+
+<Card href="./logging" title="Логи та метрики">
+  Рівні логування, файл логів та лічильники stats
+</Card>

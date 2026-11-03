@@ -1,0 +1,178 @@
+---
+title: Логи та метрики
+description: Рівні логування, файл логів та лічильники stats
+---
+
+# Логи та метрики
+
+## Логер
+
+Без `YURST=dev` внутрішній логер **мовчить**. Увімкніть dev-режим для діагностики:
+
+```dotenv
+YURST=dev
+YURST_LOG=debug
+```
+
+### Рівні логування
+
+| `YURST_LOG` | Що показується |
+| --- | --- |
+| `debug` | Усе, включно з детальною діагностикою |
+| `info` | Звичайні події (за замовчуванням у dev-режимі) |
+| `warn` | Попередження та помилки |
+| `error` | Лише помилки |
+
+### Приклад логів
+
+```
+[info]  bot start | MODE=ws | node=v22.0.0 | DEV
+[info]  bot Ani @ani_ id=2251
+[info]  bot commands → 200 /ping[all] /help[all]
+[info]  ws connecting… (attempt 1)
+[info]  ws socket open — waiting for greeting…
+[info]  ws connected — server 1.2.3
+[info]  update #12345 via=ws lag=1s | message /ping
+[debug] update raw { ID: 12345, Type: 'message', ... }
+[info]  api GET /dialogs/d.xxx/messages → 200 (89ms)
+```
+
+### Особливості
+
+- **ANSI-кольори** вмикаються лише в TTY
+- **Токен** у виведених рядках замінюється на `***`
+- **Обрізання даних**: до 500 символів на рівні `info`, до 4000 на `debug`
+- **LOG_FILE** дописує логи у файл у додаток до stdout
+
+```dotenv
+LOG_FILE=bot.log
+```
+
+<Callout>
+  Помилки запису у файл ігноруються. Переконайтеся, що процес має права на запис.
+</Callout>
+
+## Власні логи
+
+Логер експортується як `L`:
+
+```js
+import { L } from 'yurst';
+
+L.info('tag', 'повідомлення');
+L.warn('tag', 'попередження');
+L.error('tag', 'помилка');
+L.debug('tag', 'деталі для відлагодження');
+```
+
+### Формат виклику
+
+```js
+L.level(tag, message, data?);
+```
+
+| Параметр | Опис |
+| --- | --- |
+| `tag` | Короткий ідентифікатор контексту |
+| `message` | Текст повідомлення |
+| `data` | Опціональні дані для логування |
+
+```js
+L.info('bot', 'Запущено', { version: '1.0.0' });
+L.error('db', 'Помилка підключення', err);
+```
+
+## Лічильники stats
+
+`stats` — спільний об'єкт, який оновлюється під час роботи:
+
+```js
+import { stats } from 'yurst';
+
+console.log(stats);
+// {
+//   updates: 1523,
+//   errors: 2,
+//   apiCalls: 1540,
+//   apiErrors: 0,
+//   dupes: 3
+// }
+```
+
+### Опис лічильників
+
+| Лічильник | Коли збільшується |
+| --- | --- |
+| `updates` | Кожне прийняте оновлення (не дубль) |
+| `errors` | Помилка в обробнику оновлення |
+| `apiCalls` | Кожна спроба HTTP-запиту (включно з повторами) |
+| `apiErrors` | Кожна відповідь з `ok: false` |
+| `dupes` | Пропущений дубль оновлення |
+
+### Використання в команді
+
+```js
+import { bot, stats, fmtUptime } from 'yurst';
+
+bot.command('stats', 'Статистика бота', (ctx) => {
+  const lines = [
+    `⏱ Uptime: ${fmtUptime()}`,
+    `📨 Updates: ${stats.updates}`,
+    `❌ Errors: ${stats.errors}`,
+    `🔌 API calls: ${stats.apiCalls} (${stats.apiErrors} failed)`,
+    `🔁 Duplicates: ${stats.dupes}`,
+  ];
+  return ctx.reply(lines.join('\n'));
+});
+```
+
+## fmtUptime
+
+Повертає час роботи процесу у форматі `1h 23m 4s`:
+
+```js
+import { fmtUptime } from 'yurst';
+
+console.log(fmtUptime());  // "2h 34m 12s"
+```
+
+Особливості:
+- Дні показуються лише якщо є: `1d 2h 3m 4s`
+- Початок відліку — момент завантаження модуля `state.js`
+
+## Приклад: Моніторинг здоров'я
+
+```js
+import { bot, stats, fmtUptime, L } from 'yurst';
+
+// Періодичний звіт про здоров'я
+setInterval(() => {
+  const errorRate = stats.apiCalls > 0
+    ? ((stats.apiErrors / stats.apiCalls) * 100).toFixed(2)
+    : 0;
+
+  L.info('health', `Uptime: ${fmtUptime()}, Error rate: ${errorRate}%`);
+}, 60000);  // кожну хвилину
+
+// Команда для перевірки стану
+bot.command('health', 'Стан бота', (ctx) => {
+  const errorRate = stats.apiCalls > 0
+    ? ((stats.apiErrors / stats.apiCalls) * 100).toFixed(2)
+    : 0;
+
+  const health = errorRate < 5 ? '✅ Healthy' : '⚠️ Issues detected';
+
+  return ctx.reply([
+    health,
+    `Uptime: ${fmtUptime()}`,
+    `Error rate: ${errorRate}%`,
+    `Updates: ${stats.updates}`,
+  ].join('\n'));
+});
+```
+
+## Далі
+
+<Card href="./reference" title="Довідник API">
+  Усі експорти, методи та структура пакета
+</Card>

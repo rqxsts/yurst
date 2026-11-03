@@ -1,0 +1,45 @@
+{
+  "name": "yurst",
+  "version": "0.1.0",
+  "description": "A lightweight Node.js library for building Yurba.one bots with commands, callbacks, keyboards, and inline queries",
+  "type": "module",
+  "main": "index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js",
+      "default": "./index.js"
+    }
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --import ./tests/setup.js --test tests/*.test.js",
+    "test:coverage": "node --import ./tests/setup.js --experimental-test-coverage --test tests/*.test.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": [
+    "yurba",
+    "bot",
+    "yurst"
+  ],
+  "author": "Rqxsts",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rqxsts/yurst.git"
+  },
+  "homepage": "https://github.com/rqxsts/yurst#readme",
+  "bugs": {
+    "url": "https://github.com/rqxsts/yurst/issues"
+  },
+  "dependencies": {}
+}

@@ -1,0 +1,26 @@
+{
+  "title": "Yurst",
+  "description": "Документація бібліотеки Yurst для створення ботів на Yurba.one",
+  "root": true,
+  "pages": [
+    "---Вступ---",
+    "index",
+    "configuration",
+    "---Основи---",
+    "commands",
+    "contexts",
+    "callbacks",
+    "keyboards",
+    "inline",
+    "events",
+    "---Під капотом---",
+    "lifecycle",
+    "transport",
+    "api-client",
+    "logging",
+    "---Довідка---",
+    "types",
+    "limitations",
+    "..."
+  ]
+}

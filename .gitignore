@@ -1,0 +1,16 @@
+node_modules/
+.next/
+.env
+.env.local
+.env.*.local
+
+# Local scratch notes and analysis, not part of the repository
+.internal/
+
+# Generated Next.js / Fumadocs output
+Docs/.source/
+*.tsbuildinfo
+
+# Logs and OS files
+*.log
+.DS_Store

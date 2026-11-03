@@ -1,0 +1,178 @@
+---
+title: Reply keyboards
+description: Text keyboards for choosing from ready-made options
+---
+
+# Reply keyboards
+
+Reply keyboards show the user ready-made text options. Unlike inline buttons, pressing one sends a regular message.
+
+## Creating a keyboard
+
+```js
+bot.command('city', 'Обрати місто', (ctx) =>
+  ctx.reply('Яке місто?', {
+    keyboard: [
+      ['Київ', 'Львів'],
+      ['Одеса'],
+      ['Скасувати'],
+    ],
+  }),
+);
+```
+
+`keyboard` is an array of rows, where each row is an array of button texts.
+
+## Handling a selection
+
+The button sends text as a regular message. It is handled via `bot.on('message')`:
+
+```js
+const CITIES = ['Київ', 'Львів', 'Одеса'];
+
+bot.on('message', (ctx) => {
+  const text = ctx.message.Text ?? '';
+
+  if (text === 'Скасувати') {
+    return ctx.reply('Скасовано.', { removeKeyboard: true });
+  }
+
+  if (CITIES.includes(text)) {
+    return ctx.reply(`Ви обрали: ${text}`, { removeKeyboard: true });
+  }
+});
+```
+
+## Removing the keyboard
+
+```js
+ctx.reply('Готово!', { removeKeyboard: true });
+```
+
+The keyboard disappears after the message is sent.
+
+## Markup priority
+
+Only one markup can be passed per call. The priority is:
+
+1. `removeKeyboard: true`
+2. `keyboard`
+3. `buttons`
+
+| Passed | Result |
+| --- | --- |
+| `{ removeKeyboard: true, keyboard: [...] }` | The keyboard is removed |
+| `{ keyboard: [...], buttons: [...] }` | `keyboard` is shown |
+| `{ buttons: [...] }` | Inline buttons are shown |
+
+<Callout type="warn" title="Limitations">
+  - The reply keyboard is always one-time (`Once: true`)
+  - It is impossible to show a reply and an inline keyboard at the same time
+</Callout>
+
+## Input field hint
+
+Pass `placeholder` to replace the default hint in the input field while the keyboard is active:
+
+```js
+ctx.reply('Оберіть місто:', {
+  keyboard: [['Київ', 'Львів'], ['Одеса']],
+  placeholder: 'Оберіть місто або натисніть кнопку',
+});
+```
+
+## Example: Navigation menu
+
+```js
+const showMenu = (ctx) => {
+  return ctx.reply('Головне меню:', {
+    keyboard: [
+      ['📊 Статистика', '⚙️ Налаштування'],
+      ['❓ Допомога'],
+    ],
+  });
+};
+
+bot.command('menu', 'Меню', showMenu);
+
+bot.on('message', async (ctx) => {
+  const text = ctx.message.Text ?? '';
+
+  switch (text) {
+    case '📊 Статистика':
+      await ctx.reply('Ваша статистика: ...');
+      return showMenu(ctx);
+
+    case '⚙️ Налаштування':
+      await ctx.reply('Налаштування:', {
+        keyboard: [['🔔 Сповіщення', '🔒 Приватність'], ['◀ Назад']],
+      });
+      return;
+
+    case '❓ Допомога':
+      await ctx.reply(ctx.help());
+      return showMenu(ctx);
+
+    case '◀ Назад':
+      return showMenu(ctx);
+  }
+});
+```
+
+## Example: Poll
+
+```js
+bot.command('poll', 'Опитування', (ctx) =>
+  ctx.reply('Яка ваша улюблена мова програмування?', {
+    keyboard: [
+      ['JavaScript', 'TypeScript'],
+      ['Python', 'Go'],
+      ['Rust', 'C++'],
+      ['Інша'],
+    ],
+  }),
+);
+
+bot.on('message', (ctx) => {
+  const text = ctx.message.Text ?? '';
+  const languages = ['JavaScript', 'TypeScript', 'Python', 'Go', 'Rust', 'C++', 'Інша'];
+
+  if (languages.includes(text)) {
+    // Зберегти вибір у базу даних
+    return ctx.reply(`Дякуємо! Ви обрали: ${text}`, { removeKeyboard: true });
+  }
+});
+```
+
+## Commands for private chats
+
+Reply keyboards are convenient in personal dialogs. Combine them with `scope: 'private'`:
+
+```js
+bot.command({
+  name: 'city',
+  description: 'Обрати місто',
+  scope: 'private',
+  run: (ctx) => ctx.reply('Яке місто?', {
+    keyboard: [['Київ', 'Львів', 'Одеса']],
+  }),
+});
+```
+
+Remember that `scope` is only passed to Yurba and is not checked locally.
+
+## Differences from inline buttons
+
+| Characteristic | Reply keyboard | Inline buttons |
+| --- | --- | --- |
+| Location | Below the input field | Under the message |
+| Action | Sends text | Sends a callback / opens a URL |
+| Persistence | One-time (`Once: true`) | Permanent until changed |
+| Handling | `bot.on('message')` | `bot.callback()` |
+| Appearance | Text buttons | Colored buttons with styles |
+
+## Next
+
+<Card href="./inline" title="Inline queries">
+  Handling `@bot query` and offering results
+</Card>

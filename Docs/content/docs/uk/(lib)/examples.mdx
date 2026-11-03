@@ -1,0 +1,366 @@
+---
+title: Приклади
+description: Готові сценарії для копіювання та адаптації
+---
+
+# Приклади
+
+## Мінімальний бот
+
+```js title="src/index.js"
+import { bot } from 'yurst';
+
+bot.command('start', 'Почати', (ctx) => ctx.reply('Привіт!'));
+bot.command('ping', 'Перевірка', (ctx) => ctx.reply('pong'));
+
+await bot.start();
+```
+
+## Повноцінний бот
+
+Команди, кнопки, callback, повідомлення та inline:
+
+```js title="src/index.js"
+import { bot, api, fmtUptime, stats } from 'yurst';
+
+// Команди
+bot.command('start', 'Почати роботу', (ctx) =>
+  ctx.reply(`Привіт, ${ctx.user?.Name ?? 'друг'}!`, {
+    buttons: [[{ text: 'Допомога', command: '/help' }]],
+  }),
+);
+
+bot.command('help', 'Список команд', (ctx) => ctx.reply(ctx.help()));
+
+bot.command('ping', 'Перевірка з\'єднання', async (ctx) => {
+  const start = Date.now();
+  await api('GET', '/bot/me');
+  return ctx.reply(`Pong! ${Date.now() - start}ms`);
+});
+
+bot.command('stats', 'Статистика', (ctx) =>
+  ctx.reply([
+    `Uptime: ${fmtUptime()}`,
+    `Updates: ${stats.updates}`,
+    `Errors: ${stats.errors}`,
+  ].join('\n')),
+);
+
+// Прихована команда
+bot.command({
+  name: 'admin',
+  register: false,
+  run: (ctx) => ctx.reply('Адмін-панель'),
+});
+
+// Callback-кнопки
+bot.command('menu', 'Меню', (ctx) =>
+  ctx.reply('Оберіть дію:', {
+    buttons: [
+      [
+        { text: 'Так', data: 'choice:yes', style: 'success' },
+        { text: 'Ні', data: 'choice:no', style: 'danger' },
+      ],
+    ],
+  }),
+);
+
+bot.callback('choice', async (ctx) => {
+  await ctx.answer();
+  const choice = ctx.data.split(':')[1];
+  await ctx.replace(`Ви обрали: ${choice}`);
+});
+
+// Повідомлення
+bot.on('message', (ctx) => {
+  const text = ctx.message.Text ?? '';
+  if (text === 'Скасувати') {
+    return ctx.reply('Скасовано', { removeKeyboard: true });
+  }
+});
+
+// Inline
+bot.on('inline', (ctx) => {
+  if (!ctx.query) return;
+  return ctx.answer([
+    { id: '1', title: 'Ехо', text: ctx.query },
+    { id: '2', title: 'Верхній регістр', text: ctx.query.toUpperCase() },
+  ]);
+});
+
+await bot.start();
+```
+
+## Лічильник на кнопках
+
+```js
+const counters = new Map();
+
+const view = (n) => [
+  [
+    { text: '−', data: 'cnt:dec', style: 'danger' },
+    { text: String(n), data: 'cnt:noop' },
+    { text: '+', data: 'cnt:inc', style: 'success' },
+  ],
+  [{ text: 'Скинути', data: 'cnt:reset' }],
+];
+
+bot.command('counter', 'Лічильник', (ctx) =>
+  ctx.reply('Лічильник: 0', { buttons: view(0) }),
+);
+
+bot.callback('cnt', async (ctx) => {
+  await ctx.answer();
+
+  const id = ctx.message?.ID;
+  const action = ctx.data.split(':')[1];
+  let n = counters.get(id) ?? 0;
+
+  switch (action) {
+    case 'inc': n++; break;
+    case 'dec': n--; break;
+    case 'reset': n = 0; break;
+  }
+
+  if (id) counters.set(id, n);
+  await ctx.replace(`Лічильник: ${n}`, { buttons: view(n) });
+});
+```
+
+## Reply-клавіатура
+
+```js
+const CITIES = ['Київ', 'Львів', 'Одеса', 'Харків'];
+
+bot.command({
+  name: 'city',
+  description: 'Обрати місто',
+  scope: 'private',
+  run: (ctx) =>
+    ctx.reply('Виберіть місто:', {
+      keyboard: [CITIES.slice(0, 2), CITIES.slice(2), ['Скасувати']],
+    }),
+});
+
+bot.on('message', (ctx) => {
+  const text = ctx.message.Text ?? '';
+
+  if (text === 'Скасувати') {
+    return ctx.reply('Скасовано.', { removeKeyboard: true });
+  }
+
+  if (CITIES.includes(text)) {
+    return ctx.reply(`Ви обрали: ${text}`, { removeKeyboard: true });
+  }
+});
+```
+
+## Deep-linking
+
+```js
+bot.command({
+  name: 'start',
+  register: false,
+  run: (ctx) => {
+    if (ctx.payload) {
+      // https://yurba.one/messenger?bot=username&start=ref_123
+      return ctx.reply(`Вітаємо! Реферал: ${ctx.payload}`);
+    }
+    return ctx.reply('Вітаємо!');
+  },
+});
+
+bot.command('invite', 'Запросити', (ctx) => {
+  const ref = `ref_${ctx.user?.ID}`;
+  return ctx.reply(`Поширте посилання:\n${bot.me.invite(ref)}`);
+});
+```
+
+## Пагінація
+
+```js
+const ITEMS = ['Яблуко', 'Банан', 'Апельсин', 'Груша', 'Кавун', 'Манго'];
+const PER_PAGE = 2;
+
+const view = (page) => {
+  const total = Math.ceil(ITEMS.length / PER_PAGE);
+  return [
+    [
+      { text: '◀', data: `page:${page - 1}`, style: page === 0 ? 'primary' : undefined },
+      { text: `${page + 1}/${total}`, data: 'page:noop' },
+      { text: '▶', data: `page:${page + 1}`, style: page === total - 1 ? 'primary' : undefined },
+    ],
+  ];
+};
+
+bot.command('list', 'Список', (ctx) => {
+  const items = ITEMS.slice(0, PER_PAGE).join('\n');
+  return ctx.reply(items, { buttons: view(0) });
+});
+
+bot.callback('page', async (ctx) => {
+  await ctx.answer();
+
+  const page = parseInt(ctx.data.split(':')[1]);
+  const total = Math.ceil(ITEMS.length / PER_PAGE);
+
+  if (page < 0 || page >= total) return;
+
+  const start = page * PER_PAGE;
+  const items = ITEMS.slice(start, start + PER_PAGE).join('\n');
+
+  await ctx.replace(items, { buttons: view(page) });
+});
+```
+
+## Опитування
+
+```js
+const poll = {
+  question: 'Яка ваша улюблена мова?',
+  options: ['JavaScript', 'Python', 'Go', 'Rust'],
+  votes: new Map(),
+};
+
+bot.command('poll', 'Опитування', (ctx) => {
+  const buttons = poll.options.map((opt, i) => [
+    { text: opt, data: `vote:${i}` },
+  ]);
+
+  const results = poll.options
+    .map((opt, i) => `${opt}: ${poll.votes.get(i) ?? 0}`)
+    .join('\n');
+
+  return ctx.reply(`${poll.question}\n\n${results}`, { buttons });
+});
+
+bot.callback('vote', async (ctx) => {
+  await ctx.answer('Дякуємо за голос!');
+
+  const option = parseInt(ctx.data.split(':')[1]);
+  poll.votes.set(option, (poll.votes.get(option) ?? 0) + 1);
+
+  const buttons = poll.options.map((opt, i) => [
+    { text: opt, data: `vote:${i}` },
+  ]);
+
+  const results = poll.options
+    .map((opt, i) => `${opt}: ${poll.votes.get(i) ?? 0}`)
+    .join('\n');
+
+  await ctx.replace(`${poll.question}\n\n${results}`, { buttons });
+});
+```
+
+## Inline-пошук
+
+```js
+const PRODUCTS = [
+  { id: 1, name: 'iPhone 15', price: 999 },
+  { id: 2, name: 'MacBook Pro', price: 1999 },
+  { id: 3, name: 'iPad Pro', price: 799 },
+  { id: 4, name: 'AirPods Pro', price: 249 },
+];
+
+bot.on('inline', (ctx) => {
+  const q = ctx.query.toLowerCase().trim();
+  if (!q) return;
+
+  const filtered = PRODUCTS.filter(p =>
+    p.name.toLowerCase().includes(q),
+  );
+
+  const results = filtered.map(p => ({
+    id: String(p.id),
+    title: p.name,
+    text: `${p.name} — $${p.price}`,
+  }));
+
+  return ctx.answer(results);
+});
+```
+
+## Обробка подій
+
+```js
+import { L } from 'yurst';
+
+bot.on('stopped', (update) => {
+  L.info('bot', `User ${update.User?.ID} blocked the bot`);
+});
+
+bot.on('added', (update) => {
+  L.info('bot', 'Added to chat', update);
+});
+
+bot.on('edit', (update) => {
+  L.info('bot', `Message ${update.Message?.ID} edited`);
+});
+```
+
+## Перевірка прав
+
+```js
+const ADMINS = [12345, 67890];
+
+bot.command({
+  name: 'admin',
+  register: false,
+  run: (ctx) => {
+    if (!ADMINS.includes(ctx.user?.ID)) {
+      return ctx.reply('Немає доступу');
+    }
+    return ctx.reply('Адмін-панель', {
+      buttons: [
+        [{ text: 'Статистика', data: 'admin:stats' }],
+        [{ text: 'Розсилка', data: 'admin:broadcast' }],
+      ],
+    });
+  },
+});
+
+bot.callback('admin', async (ctx) => {
+  if (!ADMINS.includes(ctx.user?.ID)) {
+    return ctx.answer({ text: 'Немає доступу', alert: true });
+  }
+
+  await ctx.answer();
+  // Обробка адмін-дій
+});
+```
+
+## Каталог із багатьма кнопками
+
+`ButtonsBuilder` формує рядки кнопок із динамічного списку. Тут до трьох кнопок додається в кожен рядок:
+
+```js
+import { ButtonsBuilder, bot } from 'yurst';
+
+const products = Array.from({ length: 18 }, (_, index) => ({
+  id: String(index + 1),
+  name: `Товар ${index + 1}`,
+}));
+
+const productMenu = new ButtonsBuilder();
+products.forEach((product, index) => {
+  if (index % 3 === 0) productMenu.row();
+  productMenu.callback(product.name, `product:${product.id}`).gray();
+});
+
+bot.command('catalog', 'Відкрити каталог', (ctx) =>
+  ctx.reply(`Каталог: ${products.length} товарів`, {
+    buttons: productMenu.build(),
+  }),
+);
+
+bot.callback('product', async (ctx) => {
+  await ctx.answer();
+  const productId = ctx.data.slice('product:'.length);
+  const product = products.find((item) => item.id === productId);
+  if (product) await ctx.replace(`Ви обрали: ${product.name}`);
+});
+
+await bot.start();
+```
+
+`row()` викликається перед першим елементом кожного рядка. Callback містить ID товару, тож обробник знаходить потрібний запис за даними, а не за позицією кнопки.

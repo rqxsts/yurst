@@ -1,0 +1,6 @@
+packages:
+  - 'Yurst'
+  - 'Example'
+  - 'Docs'
+allowBuilds:
+  esbuild: false

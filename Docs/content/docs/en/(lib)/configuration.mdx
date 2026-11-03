@@ -1,0 +1,204 @@
+---
+title: Configuration
+description: Environment variables, the .env file, and bot configuration
+---
+
+# Configuration
+
+Yurst is configured through environment variables. The only required variable is `TOKEN`; all others have default values.
+
+## The .env file
+
+Create a `.env` file in the project root:
+
+```dotenv title=".env"
+# Обов'язково
+TOKEN=b.your_bot_token_here
+
+# Опціонально
+MODE=ws
+YURST=dev
+LOG_FILE=bot.log
+```
+
+<Callout title="Security">
+  Add `.env` to `.gitignore` so you do not accidentally publish the token in a repository.
+</Callout>
+
+### Loading variables
+
+Yurst automatically reads `.env` on import. Two methods are supported:
+
+**Recommended** — passing via Node.js:
+
+```sh
+node --env-file=.env src/index.js
+```
+
+**Automatic** — Yurst looks for `.env` in the current working directory, and if it is not there — in the workspace root. Additionally, the path can be set with the `YURST_ENV_FILE` variable.
+
+If a variable already exists in `process.env`, the value from `.env` will not overwrite it. This allows overriding configuration through the environment.
+
+## Environment variables
+
+### Required
+
+| Variable | Description |
+| --- | --- |
+| `TOKEN` | Bot token in the format `b.xxxx`. Can be obtained in the bot settings on Yurba.one |
+
+If `TOKEN` is not found, Yurst prints an error and terminates the process:
+
+```
+Yurst: TOKEN not found. Create .env with TOKEN=b.xxxx
+```
+
+### Transport
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `MODE` | `ws` | Mode for receiving updates: `ws` (WebSocket) or `poll` (long polling) |
+| `WS_IDLE_MS` | `0` | WebSocket inactivity watchdog in milliseconds. `0` — disabled |
+| `WS_MAX_FAILS` | `5` | Number of short failed connections before switching to polling. `0` — unlimited |
+| `POLL_TIMEOUT_S` | `30` | Long polling timeout on the server side (seconds) |
+
+### HTTP and API
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `API_TIMEOUT_MS` | `10000` | Timeout for HTTP requests to the API (milliseconds) |
+| `MAX_TEXT` | `4000` | Maximum length of a single message part (characters) |
+
+### Logging
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `YURST` | — | `dev` enables development mode with detailed logs |
+| `YURST_LOG` | `info` | Minimum log level: `debug`, `info`, `warn`, `error` |
+| `LOG_FILE` | — | Path to the file for writing logs (appended in addition to stdout) |
+
+### Other
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `YURST_ENV_FILE` | — | Additional path to `.env`, which is checked first |
+
+## Transport modes
+
+### WebSocket (recommended)
+
+```dotenv
+MODE=ws
+```
+
+Benefits:
+- Instant receipt of updates
+- Less load on the API
+- Automatic reconnect with exponential backoff
+
+If WebSocket is unavailable (Node < 22 without the `ws` package) or the connection fails `WS_MAX_FAILS` times in a row — Yurst automatically switches to polling.
+
+### Long Polling
+
+```dotenv
+MODE=poll
+```
+
+Used when:
+- WebSocket is unavailable in the environment
+- Full control over requests is required
+- `MODE=poll` is set explicitly
+
+Learn more about how the transport works: [Update transport](./transport).
+
+## Development mode
+
+For local development, enable detailed logs:
+
+```dotenv
+YURST=dev
+YURST_LOG=debug
+```
+
+In `dev` mode:
+- The logger outputs debug messages
+- Raw updates (raw update) get into the logs
+- HTTP request details are shown
+
+Example logs in dev mode:
+
+```
+[info]  bot start | MODE=ws | node=v22.0.0 | DEV
+[info]  bot Ani @ani_ id=2251
+[info]  bot commands → 200 /ping[all] /help[all]
+[debug] api GET /bot/me → 200 (156ms) {User: {...}}
+[info]  update #12345 via=ws lag=1s | message /ping
+```
+
+## Configuration examples
+
+### Production
+
+```dotenv
+TOKEN=b.prod_token
+MODE=ws
+LOG_FILE=/var/log/bot.log
+WS_MAX_FAILS=10
+```
+
+### Development
+
+```dotenv
+TOKEN=b.dev_token
+MODE=ws
+YURST=dev
+YURST_LOG=debug
+LOG_FILE=bot.log
+```
+
+### Testing with polling
+
+```dotenv
+TOKEN=b.test_token
+MODE=poll
+YURST=dev
+YURST_LOG=debug
+POLL_TIMEOUT_S=10
+```
+
+## The CFG object
+
+After loading, the configuration is available inside the package as a frozen object:
+
+```js
+// Внутрішня структура (не публічний експорт):
+CFG = {
+  mode: 'ws',           // 'ws' | 'poll'
+  logFile: undefined,   // string | undefined
+  wsIdleMs: 0,          // number
+  wsMaxFails: 5,        // number
+  maxText: 4000,        // number
+  apiTimeoutMs: 10000,  // number
+  pollTimeoutS: 30,     // number
+};
+```
+
+<Callout title="Immutable">
+  The `CFG` object is frozen via `Object.freeze()`. Values cannot be changed at runtime — restart the process after changing `.env`.
+</Callout>
+
+## Process environment variables
+
+You can pass variables directly to the process:
+
+```sh
+TOKEN=b.xxx MODE=poll YURST=dev node src/index.js
+```
+
+Or through a CI/CD environment — this is safer than storing the token in a file.
+
+## Next
+
+<Card href="./commands" title="Commands">
+  Registering slash commands, arguments, and deep-linking
+</Card>

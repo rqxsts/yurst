@@ -1,0 +1,145 @@
+---
+title: Inline queries
+description: Handling @bot query and offering results
+---
+
+# Inline queries
+
+Inline mode allows a user to invoke the bot from any chat by typing `@bot_username query`.
+
+## How it works
+
+1. The user types `@mybot search`
+2. Yurba sends an inline query to the bot
+3. The bot responds with a list of results
+4. The user selects a result, which is sent to the chat
+
+## InlineContext
+
+Passed to `bot.on('inline')`.
+
+### Fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `ctx.update` | `object` | Raw update |
+| `ctx.user` | `object \| null` | The user who made the request |
+| `ctx.query` | `string` | Request text after the bot name |
+
+### Methods
+
+#### answer(results)
+
+Responds to the query with a list of results.
+
+```js
+bot.on('inline', (ctx) => {
+  if (!ctx.query) return;
+
+  return ctx.answer([
+    { id: '1', title: 'Ехо', text: ctx.query },
+    { id: '2', title: 'Великі літери', text: ctx.query.toUpperCase() },
+  ]);
+});
+```
+
+## Result format
+
+Each result is an object with the fields:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `id` | no* | Unique result ID |
+| `title` | yes | Title in the list |
+| `text` | yes | Message text when selected |
+
+\* If `id` is not passed, Yurst generates a random one.
+
+### Record format
+
+Yurst accepts both variants:
+
+| camelCase | PascalCase |
+| --- | --- |
+| `id` | `ID` |
+| `title` | `Title` |
+| `text` | `Text` |
+
+```js
+// Обидва варіанти еквівалентні:
+ctx.answer([{ id: '1', title: 'Test', text: 'Hello' }]);
+ctx.answer([{ ID: '1', Title: 'Test', Text: 'Hello' }]);
+```
+
+## Example: Transformations
+
+```js
+bot.on('inline', (ctx) => {
+  const q = ctx.query.trim();
+  if (!q) return;
+
+  return ctx.answer([
+    { id: 'upper', title: 'Великі літери', text: q.toUpperCase() },
+    { id: 'lower', title: 'Малі літери', text: q.toLowerCase() },
+    { id: 'reverse', title: 'Реверс', text: [...q].reverse().join('') },
+  ]);
+});
+```
+
+## Example: Search
+
+```js
+const PRODUCTS = [
+  { id: 1, name: 'iPhone 15', price: 999 },
+  { id: 2, name: 'MacBook Pro', price: 1999 },
+  { id: 3, name: 'iPad Pro', price: 799 },
+  { id: 4, name: 'AirPods Pro', price: 249 },
+];
+
+bot.on('inline', (ctx) => {
+  const q = ctx.query.toLowerCase().trim();
+  if (!q) return;
+
+  const filtered = PRODUCTS.filter(p =>
+    p.name.toLowerCase().includes(q),
+  );
+
+  const results = filtered.map(p => ({
+    id: String(p.id),
+    title: p.name,
+    text: `${p.name} — $${p.price}`,
+  }));
+
+  return ctx.answer(results);
+});
+```
+
+## The inline_sent event
+
+When a user selects a result, the bot receives an `inline_sent` event:
+
+```js
+bot.on('inline_sent', (update) => {
+  console.log('Результат вибрано:', update);
+  // update.Inline — інформація про вибраний результат
+  // update.User — хто вибрав
+});
+```
+
+The handler receives the **raw update object**, not a context.
+
+<Callout>
+  Always check `ctx.query` for an empty value. Empty queries are best ignored.
+</Callout>
+
+## Limitations
+
+- Results are visible only to the user who made the request
+- There is a limit on the number of results (usually ~50)
+- The response timeout is a few seconds
+
+## Next
+
+<Card href="./events" title="Events">
+  All event types and their handling
+</Card>

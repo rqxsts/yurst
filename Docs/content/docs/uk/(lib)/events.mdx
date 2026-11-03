@@ -1,0 +1,182 @@
+---
+title: Події
+description: Всі типи оновлень та їх обробка
+---
+
+# Події
+
+`bot.on(event, handler)` підписує обробник на тип оновлення Yurba.
+
+## Реєстрація обробників
+
+```js
+bot.on('message', (ctx) => {
+  console.log('Повідомлення:', ctx.message.Text);
+});
+
+bot.on('inline', (ctx) => {
+  if (!ctx.query) return;
+  return ctx.answer([{ id: '1', title: 'Echo', text: ctx.query }]);
+});
+
+bot.on('stopped', (update) => {
+  console.log('Користувач заблокував бота:', update.User?.ID);
+});
+```
+
+## Типи подій та контексти
+
+| Подія | Що отримує handler | Опис |
+| --- | --- | --- |
+| `message` | [`MessageContext`](./contexts) | Звичайні повідомлення (не команди) |
+| `inline` | [`InlineContext`](./inline) | Inline-запити (`@bot query`) |
+| `callback` | — | Обробляються через [`bot.callback()`](./callbacks) |
+| Інші | Сире оновлення | Див. таблицю нижче |
+
+## Інші події
+
+Для всіх інших типів Yurst передає **сирий об'єкт оновлення**:
+
+| Подія | Коли відбувається |
+| --- | --- |
+| `inline_sent` | Користувач вибрав inline-результат |
+| `stopped` | Користувач заблокував бота |
+| `added` | Бота додали до чату |
+| `removed` | Бота видалили з чату |
+| `joined` | Хтось приєднався до чату |
+| `left` | Хтось вийшов з чату |
+| `edit` | Повідомлення відредаговано |
+| `delete` | Повідомлення видалено |
+| `test` | Тестовий запит з налаштувань бота |
+
+### Приклади
+
+```js
+// Користувач заблокував бота
+bot.on('stopped', (update) => {
+  console.log(`User ${update.User?.ID} blocked the bot`);
+});
+
+// Бота додали до чату
+bot.on('added', (update) => {
+  console.log('Added to chat:', update);
+});
+
+// Повідомлення відредаговано
+bot.on('edit', (update) => {
+  const msg = update.Message;
+  console.log(`Message ${msg?.ID} edited:`, msg?.Text);
+});
+
+// Повідомлення видалено
+bot.on('delete', (update) => {
+  console.log('Message deleted:', update);
+});
+```
+
+## Кілька обробників
+
+На одну подію можна зареєструвати кілька обробників. Вони виконуються **послідовно**:
+
+```js
+bot.on('message', async (ctx) => {
+  console.log('Перший обробник');
+  // Виконується першим
+});
+
+bot.on('message', async (ctx) => {
+  console.log('Другий обробник');
+  // Виконується другим
+});
+```
+
+### Обробка помилок
+
+Якщо обробник викидає помилку:
+1. Подальші обробники цієї події **не викликаються**
+2. Помилка логується
+3. `stats.errors` збільшується
+4. Процес продовжує працювати
+
+```js
+bot.on('message', async (ctx) => {
+  throw new Error('Помилка!');
+  // Цей код не виконається
+});
+
+bot.on('message', async (ctx) => {
+  // Цей обробник НЕ буде викликаний
+  // бо попередній впав з помилкою
+});
+```
+
+<Callout type="warn" title="Не забувайте await">
+  Якщо викликаєте асинхронні методи, обов'язково `await`-те проміс або повертайте його. Інакше помилка може загубитися.
+</Callout>
+
+## Паралельність
+
+Різні оновлення можуть оброблятися одночасно:
+
+```js
+let counter = 0;
+
+bot.on('message', async (ctx) => {
+  const current = counter++;
+  await new Promise(r => setTimeout(r, 1000));
+  console.log(current, counter);
+  // Може вивести: 0 5
+  // Бо інші оновлення оброблялися паралельно
+});
+```
+
+<Callout>
+  Якщо обробники ділять стан (Map, лічильники тощо), не припускайте послідовного виконання.
+</Callout>
+
+## Message подія
+
+`bot.on('message')` отримує лише **некомандні** повідомлення:
+
+```js
+bot.command('ping', 'Ping', (ctx) => ctx.reply('pong'));
+
+bot.on('message', (ctx) => {
+  // Сюди НЕ потрапить /ping
+  // Сюди потрапить будь-яке інше повідомлення
+  console.log('Text:', ctx.message.Text);
+});
+```
+
+## Невідомі події
+
+Якщо Yurba додасть новий тип події, Yurst передасть її як сирий об'єкт:
+
+```js
+bot.on('new_event_type', (update) => {
+  console.log('New event:', update);
+});
+```
+
+## Приклад: Логування всіх подій
+
+```js
+import { L } from 'yurst';
+
+// Логуємо всі події
+const EVENT_TYPES = [
+  'stopped', 'added', 'removed', 'joined', 'left', 'edit', 'delete',
+];
+
+for (const type of EVENT_TYPES) {
+  bot.on(type, (update) => {
+    L.info('event', type, update);
+  });
+}
+```
+
+## Далі
+
+<Card href="./lifecycle" title="Життєвий цикл">
+  Запуск, graceful shutdown та обробка помилок
+</Card>

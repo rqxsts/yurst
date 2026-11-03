@@ -1,0 +1,150 @@
+---
+title: Швидкий старт
+description: Початок роботи з Yurst
+---
+
+# Вступ до Yurst
+
+Повноцінна документація бібліотеки **Yurst** для створення ботів на Node.js для платформи [Yurba.one](https://yurba.one).
+
+Yurst дає singleton `bot`, на якому ви реєструєте команди, callback-кнопки та обробники подій, а все інше (підключення, повторні спроби, дедуплікацію, синхронізацію списку команд) бібліотека робить сама.
+
+<Callout title="Вимоги">
+  Базові знання JavaScript, Node.js **22 або новіший** та акаунт на [Yurba.one](https://yurba.one).
+</Callout>
+
+## Що вміє Yurst
+
+- Команди у короткій та об'єктній формі, автоматична синхронізація списку з Yurba.
+- Callback-кнопки з простою маршрутизацією за префіксом.
+- Inline-кнопки (`data`, `url`, `copy`, `command`) та reply-клавіатури.
+- Inline-запити, редагування повідомлень, індикатор набору тексту.
+- Оновлення через WebSocket із автоматичним переходом на long polling.
+- Без runtime-залежностей, лише ESM.
+
+## Перший бот
+
+### Встановіть Node.js [step]
+
+Завантажте [Node.js](https://nodejs.org/en) версії 22 або новішої та перевірте:
+
+```sh
+node --version
+```
+
+### Створіть бота [step]
+
+[Перейдіть у налаштування розробника](https://yurba.one/settings/?page=developer#createBot), створіть нового бота та збережіть його токен.
+
+<Callout title="Важливо" type="warn">
+  Нікому не надавайте доступ до токена. Не публікуйте його в репозиторії.
+</Callout>
+
+### Створіть проєкт [step]
+
+<Tabs items={['npm', 'pnpm', 'yarn', 'bun']}>
+  <Tab value="npm">
+    ```sh
+    npm init -y
+    ```
+  </Tab>
+  <Tab value="pnpm">
+    ```sh
+    pnpm init
+    ```
+  </Tab>
+  <Tab value="yarn">
+    ```sh
+    yarn init -y
+    ```
+  </Tab>
+  <Tab value="bun">
+    ```sh
+    bun init
+    ```
+  </Tab>
+</Tabs>
+
+Yurst є ESM-пакетом, тому додайте у `package.json` рядок `"type": "module"`:
+
+```json title="package.json"
+{
+  "name": "my-bot",
+  "type": "module"
+}
+```
+
+### Встановіть Yurst [step]
+
+<Tabs items={['npm', 'pnpm', 'yarn', 'bun']}>
+  <Tab value="npm">
+    ```sh
+    npm install yurst
+    ```
+  </Tab>
+  <Tab value="pnpm">
+    ```sh
+    pnpm add yurst
+    ```
+  </Tab>
+  <Tab value="yarn">
+    ```sh
+    yarn add yurst
+    ```
+  </Tab>
+  <Tab value="bun">
+    ```sh
+    bun add yurst
+    ```
+  </Tab>
+</Tabs>
+
+### Додайте токен [step]
+
+Створіть файл `.env` у корені проєкту:
+
+```dotenv title=".env"
+TOKEN=b.your_bot_token
+MODE=ws 
+```
+
+Не забудьте додати `.env` до `.gitignore`.
+
+### Напишіть код [step]
+
+```js title="src/index.js"
+import { bot } from 'yurst';
+
+bot.command('ping', 'Connection check', (ctx) => ctx.reply('pong'));
+bot.command('help', 'List of commands', (ctx) => ctx.reply(ctx.help()));
+
+await bot.start();
+```
+
+### Запустіть бота [step]
+
+```sh
+node --env-file=.env src/index.js
+```
+
+Відкрийте чат із ботом на Yurba.one та надішліть `/ping`. Якщо у відповідь прийшло `pong`, усе працює.
+
+## Куди рухатися далі
+
+ <Cards>
+  <Card href="./configuration" title="Конфігурація">
+    Змінні середовища та налаштування `.env`.
+  </Card>
+  <Card href="./commands" title="Команди">
+    Як реєструвати та обробляти команди.
+  </Card>
+  <Card href="./callbacks" title="Callback-и та кнопки">
+    Створення інтерактивних повідомлень.
+  </Card>
+  <Card href="./examples" title="Приклади">
+    Готові сценарії, які можна скопіювати та використати.
+  </Card>
+  <Card href="./reference" title="Довідник API">
+    Усі експорти та методи бібліотеки в одному місці.
+  </Card>
+</Cards>

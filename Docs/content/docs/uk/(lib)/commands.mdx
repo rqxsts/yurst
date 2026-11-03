@@ -1,0 +1,242 @@
+---
+title: Команди
+description: Реєстрація slash-команд, аргументи та deep-linking
+---
+
+# Команди
+
+Команда — це повідомлення, яке починається зі слеша, наприклад `/ping`. Команди реєструються через `bot.command()`.
+
+## Реєстрація команд
+
+### Коротка форма
+
+```js
+bot.command('ping', 'Перевірка з\'єднання', (ctx) => ctx.reply('pong'));
+```
+
+Параметри:
+- `name` — назва команди без `/`
+- `description` — опис для списку команд у Yurba
+- `handler` — функція-обробник, отримує `MessageContext`
+
+### Коротка з опціями
+
+```js
+bot.command('internal', 'Внутрішня команда', handler, { register: false });
+```
+
+Опції:
+- `register` — чи реєструвати команду в Yurba (за замовчуванням `true`)
+
+### Об'єктна форма
+
+```js
+bot.command({
+  name: 'city',
+  description: 'Обрати місто',
+  scope: 'private',     // 'all' | 'private' | 'groups'
+  register: true,       // чи надсилати до Yurba
+  run: (ctx) => ctx.reply('Яке місто?', { keyboard: [['Kyiv', 'Lviv']] }),
+});
+```
+
+Використовуйте об'єктну форму коли потрібні:
+- `scope` — обмеження видимості команди
+- `register: false` — прихована команда
+
+## Параметри команди
+
+| Параметр | Обов'язковий | За замовчуванням | Опис |
+| --- | --- | --- | --- |
+| `name` | так | — | Назва без `/`, наприклад `'ping'` |
+| `description` | ні | `''` | Опис у списку команд Yurba |
+| `scope` | ні | `'all'` | `'all'` — усі чати, `'private'` — лише приватні чати, `'groups'` — групи й канали |
+| `register` | ні | `true` | Чи надсилати команду до Yurba при старті |
+| `run` | так | — | Обробник, отримує [`MessageContext`](./contexts) |
+
+## Обмеження Yurba API
+
+Під час `bot.start()` Yurst передає весь список команд одним `PUT /bot/commands`. Цей запит **замінює попередній список цілком**; порожній список видаляє всі команди. Yurba повертає збережений список, заповнюючи відсутній `Scope` значенням `all`.
+
+- Назва після видалення одного початкового `/` і перетворення на нижній регістр має містити від 1 до 32 латинських літер, цифр або `_`.
+- Опис може мати до 256 символів.
+- Дозволено до 50 команд.
+- Некоректна або повторна назва, невідомий `scope` чи перевищення ліміту відхиляють запит; для некоректної назви, дубля або невідомого `scope` Yurba відповідає `invalid_command`, для перевищення ліміту — `too_many_commands`. У разі помилки список не змінюється.
+
+Для керування списком від імені власника існує `PUT /bots/{bot_id}/commands`, який використовує токен власника. Ендпоінти `/bot/*` доступні лише з токеном бота.
+
+## Маршрутизація команд
+
+Yurst шукає **точний збіг** між `update.Command` та назвою команди.
+
+```js
+bot.command('ping', 'Check', (ctx) => ctx.reply('pong'));
+```
+
+Якщо користувач надішле:
+- `/ping` → обробник викликається
+- `/ping extra` → обробник викликається, `ctx.args === 'extra'`
+- `/pong` → невідома команда, ігнорується
+
+Невідомі команди:
+- Не потрапляють до `bot.on('message')`
+- У dev-режимі логуються як `debug: unknown: /unknown`
+
+<Callout type="warn" title="scope не перевіряється локально">
+  Параметр `scope` лише передається Yurba при реєстрації. Бібліотека локально не перевіряє тип чату для `private` чи `groups`. Якщо це критично — перевіряйте тип діалогу в обробнику.
+</Callout>
+
+## Приховані команди
+
+Команда з `register: false` працює, але не з'являється у списку команд Yurba. Використовується для:
+- `/start` з deep-linking
+- Службових команд
+- Адмінських функцій
+
+```js
+bot.command({
+  name: 'start',
+  register: false,
+  run: (ctx) => {
+    if (ctx.payload) {
+      return ctx.reply(`Welcome! Ref: ${ctx.payload}`);
+    }
+    return ctx.reply('Welcome!');
+  },
+});
+```
+
+## Аргументи та payload
+
+`MessageContext` надає два поля для додаткових даних:
+
+| Поле | Джерело | Опис |
+| --- | --- | --- |
+| `ctx.args` | `update.Args` | Текст після команди |
+| `ctx.payload` | `update.Payload` | Параметр deep-link |
+
+Якщо дані відсутні — значення `''` (порожній рядок).
+
+### Приклад з аргументами
+
+```js
+bot.command('echo', 'Повторити текст', (ctx) => {
+  if (!ctx.args) {
+    return ctx.reply('Використання: /echo <текст>');
+  }
+  return ctx.reply(ctx.args);
+});
+```
+
+### Deep-linking
+
+Користувач може запустити бота за посиланням із параметром:
+
+```
+https://yurba.one/messenger?bot=ani_&start=ref_123
+```
+
+Обробка:
+
+```js
+bot.command({
+  name: 'start',
+  register: false,
+  run: (ctx) => {
+    if (ctx.payload) {
+      // payload === 'ref_123'
+      return ctx.reply(`Вітаємо! Реферальний код: ${ctx.payload}`);
+    }
+    return ctx.reply('Вітаємо!');
+  },
+});
+```
+
+## Автоматичний список команд
+
+Метод `ctx.help()` генерує текст із усіх зареєстрованих команд:
+
+```js
+bot.command('help', 'Список команд', (ctx) => ctx.reply(ctx.help()));
+```
+
+Формат виводу:
+
+```
+  `/ping` — Перевірка з'єднання
+  `/echo` — Повторити текст
+  `/city` — Обрати місто
+```
+
+Команди з `register: false` також потрапляють до списку.
+
+<Callout>
+  Якщо опис порожній, після тире не буде тексту.
+</Callout>
+
+## Автоматична синхронізація
+
+При виклику `bot.start()` Yurst:
+
+1. Збирає всі команди з `register !== false`
+2. Формує масив `{ Command, Description, Scope }`
+3. Надсилає `PUT /bot/commands` до Yurba
+
+```js
+// При старті логи покажуть:
+// [info] bot commands → 200 /ping[all] /echo[all] /city[private]
+```
+
+Команди оновлюються при кожному запуску бота. Зміни в коді автоматично застосовуються.
+
+## Приклади
+
+### Проста команда
+
+```js
+bot.command('ping', 'Перевірка з\'єднання', (ctx) => ctx.reply('pong'));
+```
+
+### Команда з аргументами
+
+```js
+bot.command('greet', 'Привітання', (ctx) => {
+  const name = ctx.args || 'друг';
+  return ctx.reply(`Привіт, ${name}!`);
+});
+```
+
+### Команда лише для приватних чатів
+
+```js
+bot.command({
+  name: 'settings',
+  description: 'Налаштування',
+  scope: 'private',
+  run: (ctx) => ctx.reply('Налаштування...', { buttons: [...] }),
+});
+```
+
+### Адмін-команда
+
+```js
+const ADMINS = [12345, 67890];
+
+bot.command({
+  name: 'admin',
+  register: false,
+  run: (ctx) => {
+    if (!ADMINS.includes(ctx.user?.ID)) {
+      return ctx.reply('Немає доступу');
+    }
+    return ctx.reply('Адмін-панель', { buttons: [...] });
+  },
+});
+```
+
+## Далі
+
+<Card href="./contexts" title="Контексти">
+  MessageContext, CallbackContext, InlineContext та їхні методи
+</Card>

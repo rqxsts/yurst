@@ -1,0 +1,97 @@
+---
+title: Типи API
+description: Таблиці TypeScript-типів і приклади використання Yurst.
+---
+
+Yurst експортує ESM API на JavaScript і постачає TypeScript-декларації для автодоповнення та документації. Таблиці нижче згенеровані з `Yurst/index.d.ts`, тому відображають типи, які надає пакет.
+
+## Опції відповіді
+
+`ReplyOptions` задає inline-кнопки, reply-клавіатуру, видалення клавіатури та цитування повідомлення.
+
+<AutoTypeTable className="yd-auto-type-table" path="../Yurst/index.d.ts" name="ReplyOptions" />
+
+## Inline-кнопки
+
+Кнопки надсилаються рядками. `data` передає callback-дані; альтернативні дії відкривають URL, копіюють текст або запускають команду.
+
+<AutoTypeTable className="yd-auto-type-table" path="../Yurst/index.d.ts" name="Button" />
+
+Для меню, яке формується зі списку даних, використовуйте `ButtonsBuilder`: викликайте `row()` на початку кожного рядка, а потім додавайте `link()`, `command()` або callback-кнопки. Стиль застосовується до останньої доданої кнопки.
+
+<AutoTypeTable className="yd-auto-type-table" path="../Yurst/index.d.ts" name="ButtonsBuilder" />
+
+## Контекст повідомлення
+
+Команди та обробники `message` отримують цей контекст.
+
+<AutoTypeTable className="yd-auto-type-table" path="../Yurst/index.d.ts" name="MessageContext" />
+
+## Команда з кнопками
+
+```js title="src/index.js"
+import { ButtonsBuilder, bot } from 'yurst';
+
+const products = Array.from({ length: 12 }, (_, index) => ({
+  id: String(index + 1),
+  name: `Товар ${index + 1}`,
+}));
+
+const productButtons = new ButtonsBuilder();
+
+products.forEach((product, index) => {
+  if (index % 3 === 0) productButtons.row();
+  productButtons.callback(product.name, `product:${product.id}`).gray();
+});
+
+bot.command('catalog', 'Показати каталог', async (ctx) => {
+  await ctx.reply(`Каталог: ${products.length} товарів`, {
+    buttons: productButtons.build(),
+  });
+});
+
+bot.callback('product', async (ctx) => {
+  await ctx.answer();
+  const productId = ctx.data.slice('product:'.length);
+  const product = products.find((item) => item.id === productId);
+  if (product) await ctx.replace(`Ви обрали: ${product.name}`);
+});
+
+await bot.start();
+```
+
+Окремий статичний рядок можна описати ланцюжком:
+
+```js
+const menu = new ButtonsBuilder()
+  .row()
+  .link('Документація', 'https://yurba.one')
+  .command('Допомога', '/help')
+  .row()
+  .callback('Налаштування', 'settings')
+  .primary();
+```
+
+`gray()` прибирає явний стиль і залишає стандартне оформлення Yurba. Явно доступні стилі: `primary()`, `success()` та `danger()`.
+
+Завжди викликайте `ctx.answer()` на початку callback-обробника, щоб зупинити індикатор завантаження до виконання іншої роботи.
+
+<AutoTypeTable className="yd-auto-type-table" path="../Yurst/index.d.ts" name="CallbackContext" />
+
+## Reply-клавіатура та цитування
+
+```js
+await ctx.reply('Оберіть місто:', {
+  keyboard: [['Київ', 'Львів'], ['Одеса']],
+});
+
+await ctx.reply('Повідомлення без цитування', { replyTo: null });
+```
+
+## Без реєстрації команди
+
+```js
+bot.command('internal', 'Локальна команда', handler, { register: false });
+```
+
+Опція `register: false` залишає команду доступною у процесі бота, але не публікує її у списку команд Yurba.

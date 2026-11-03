@@ -1,0 +1,145 @@
+---
+title: Inline-запити
+description: Обробка @bot query та пропозиція результатів
+---
+
+# Inline-запити
+
+Inline-режим дозволяє користувачеві викликати бота з будь-якого чату, ввівши `@bot_username запит`.
+
+## Як це працює
+
+1. Користувач вводить `@mybot пошук`
+2. Yurba надсилає боту inline-запит
+3. Бот відповідає списком результатів
+4. Користувач вибирає результат, який відправляється в чат
+
+## InlineContext
+
+Передається в `bot.on('inline')`.
+
+### Поля
+
+| Поле | Тип | Опис |
+| --- | --- | --- |
+| `ctx.update` | `object` | Сире оновлення |
+| `ctx.user` | `object \| null` | Користувач, який зробив запит |
+| `ctx.query` | `string` | Текст запиту після імені бота |
+
+### Методи
+
+#### answer(results)
+
+Відповідає на запит списком результатів.
+
+```js
+bot.on('inline', (ctx) => {
+  if (!ctx.query) return;
+
+  return ctx.answer([
+    { id: '1', title: 'Ехо', text: ctx.query },
+    { id: '2', title: 'Великі літери', text: ctx.query.toUpperCase() },
+  ]);
+});
+```
+
+## Формат результатів
+
+Кожен результат — об'єкт з полями:
+
+| Поле | Обов'язкове | Опис |
+| --- | --- | --- |
+| `id` | ні* | Унікальний ID результату |
+| `title` | так | Заголовок у списку |
+| `text` | так | Текст повідомлення при виборі |
+
+\* Якщо `id` не передано, Yurst згенерує випадковий.
+
+### Формат запису
+
+Yurst приймає обидва варіанти:
+
+| camelCase | PascalCase |
+| --- | --- |
+| `id` | `ID` |
+| `title` | `Title` |
+| `text` | `Text` |
+
+```js
+// Обидва варіанти еквівалентні:
+ctx.answer([{ id: '1', title: 'Test', text: 'Hello' }]);
+ctx.answer([{ ID: '1', Title: 'Test', Text: 'Hello' }]);
+```
+
+## Приклад: Трансформації
+
+```js
+bot.on('inline', (ctx) => {
+  const q = ctx.query.trim();
+  if (!q) return;
+
+  return ctx.answer([
+    { id: 'upper', title: 'Великі літери', text: q.toUpperCase() },
+    { id: 'lower', title: 'Малі літери', text: q.toLowerCase() },
+    { id: 'reverse', title: 'Реверс', text: [...q].reverse().join('') },
+  ]);
+});
+```
+
+## Приклад: Пошук
+
+```js
+const PRODUCTS = [
+  { id: 1, name: 'iPhone 15', price: 999 },
+  { id: 2, name: 'MacBook Pro', price: 1999 },
+  { id: 3, name: 'iPad Pro', price: 799 },
+  { id: 4, name: 'AirPods Pro', price: 249 },
+];
+
+bot.on('inline', (ctx) => {
+  const q = ctx.query.toLowerCase().trim();
+  if (!q) return;
+
+  const filtered = PRODUCTS.filter(p =>
+    p.name.toLowerCase().includes(q),
+  );
+
+  const results = filtered.map(p => ({
+    id: String(p.id),
+    title: p.name,
+    text: `${p.name} — $${p.price}`,
+  }));
+
+  return ctx.answer(results);
+});
+```
+
+## Подія inline_sent
+
+Коли користувач вибирає результат, бот отримує подію `inline_sent`:
+
+```js
+bot.on('inline_sent', (update) => {
+  console.log('Результат вибрано:', update);
+  // update.Inline — інформація про вибраний результат
+  // update.User — хто вибрав
+});
+```
+
+Обробник отримує **сирий об'єкт оновлення**, не контекст.
+
+<Callout>
+  Завжди перевіряйте `ctx.query` на порожнє значення. Порожні запити краще ігнорувати.
+</Callout>
+
+## Обмеження
+
+- Результати видно лише користувачеві, який зробив запит
+- Існує ліміт на кількість результатів (зазвичай ~50)
+- Таймаут відповіді — кілька секунд
+
+## Далі
+
+<Card href="./events" title="Події">
+  Всі типи подій та їх обробка
+</Card>

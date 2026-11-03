@@ -1,0 +1,251 @@
+---
+title: Contexts
+description: MessageContext, CallbackContext, InlineContext, and their methods
+---
+
+# Contexts
+
+A context is the `ctx` object that Yurst passes to a handler. It contains update data and methods for responding.
+
+Context classes are not exported from the package — use only the documented fields and methods.
+
+## MessageContext
+
+Passed to:
+- Command handlers (`bot.command()`)
+- `bot.on('message')`
+
+### Fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `ctx.update` | `object` | Raw Yurba update |
+| `ctx.message` | `object` | Message object (`update.Message`) |
+| `ctx.user` | `object \| null` | Message author (`message.Author`) |
+| `ctx.dialog` | `string \| null` | Dialog ID (for example, `"d.xxxx"`) |
+| `ctx.args` | `string` | Command arguments (empty string if none) |
+| `ctx.payload` | `string` | Deep-link payload (empty string if none) |
+
+### Methods
+
+#### reply(text, options?)
+
+Sends a message to the same dialog. By default it quotes the current message.
+
+```js
+await ctx.reply('Відповідь');  // з цитуванням
+await ctx.reply('Без цитати', { replyTo: null });  // без цитування
+```
+
+Options:
+- `buttons` — inline buttons
+- `keyboard` — reply keyboard
+- `removeKeyboard` — remove the keyboard
+- `replyTo` — ID of the message to quote (by default `ctx.message.ID`)
+
+Returns: `Promise<ApiResponse>`
+
+#### send(text, options?)
+
+Sends a message without quoting.
+
+```js
+await ctx.send('Окреме повідомлення', {
+  buttons: [[{ text: 'Відкрити', url: 'https://yurba.one' }]],
+});
+```
+
+The options are the same as in `reply()`, but without `replyTo`.
+
+Returns: `Promise<ApiResponse>`
+
+#### typing()
+
+Shows the "typing..." indicator in the dialog.
+
+```js
+await ctx.typing();
+// довга операція...
+await ctx.reply('Готово!');
+```
+
+Returns: `Promise<ApiResponse>`
+
+#### help()
+
+Generates text from the list of all registered commands.
+
+```js
+bot.command('help', 'Допомога', (ctx) => ctx.reply(ctx.help()));
+```
+
+Returns: `string`
+
+<Callout title="Long messages">
+  The `reply()` and `send()` methods do not split long text automatically. Watch the length or use the low-level `send()` from `api.js`.
+</Callout>
+
+## CallbackContext
+
+Passed to `bot.callback()` handlers.
+
+### Fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `ctx.update` | `object` | Raw update |
+| `ctx.callback` | `object` | Callback object (`{ ID, Data, Message, User }`) |
+| `ctx.user` | `object \| null` | The user who pressed the button |
+| `ctx.dialog` | `string \| null` | Dialog ID |
+| `ctx.message` | `object \| null` | The message with the button (may be `null`) |
+| `ctx.data` | `string` | The `data` string of the pressed button |
+
+### Methods
+
+#### answer(textOrOpts?)
+
+Confirms the button press. **Always call it first**, before long operations.
+
+```js
+await ctx.answer();                           // зняти індикатор завантаження
+await ctx.answer('Збережено!');               // коротке повідомлення
+await ctx.answer({ text: 'Увага!', alert: true }); // модальне вікно
+await ctx.answer({ url: 'https://yurba.one' });    // відкрити URL
+```
+
+Parameters:
+- `string` — show a toast message
+- `{ text, alert, url }` — fine-grained configuration
+  - `text` — message text
+  - `alert` — `true` for a modal window
+  - `url` — open a link
+
+<Callout type="warn" title="8 second timeout">
+  Yurba waits for a response for ~8 seconds. Always call `ctx.answer()` before heavy operations. Repeated calls are safe — they are ignored.
+</Callout>
+
+#### replace(text, options?)
+
+Edits the text of the message with the button.
+
+```js
+await ctx.replace('Новий текст', {
+  buttons: [[{ text: 'Оновлено', data: 'updated' }]],
+});
+```
+
+Throws an error if `ctx.message` is missing.
+
+#### editMarkup(options?)
+
+Changes only the markup (buttons) of the message.
+
+```js
+await ctx.editMarkup({
+  buttons: [[{ text: 'Нова кнопка', data: 'new' }]],
+});
+
+// Прибрати клавіатуру
+await ctx.editMarkup({ removeKeyboard: true });
+```
+
+#### reply(text, options?)
+
+Sends a new message to the dialog.
+
+```js
+await ctx.reply('Додаткове повідомлення');
+```
+
+Learn more about callback buttons: [Callbacks and buttons](./callbacks).
+
+## InlineContext
+
+Passed to `bot.on('inline')`.
+
+### Fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `ctx.update` | `object` | Raw update |
+| `ctx.user` | `object \| null` | The user who made the request |
+| `ctx.query` | `string` | Request text after the bot name |
+
+### Methods
+
+#### answer(results)
+
+Responds to an inline query with a list of results.
+
+```js
+bot.on('inline', (ctx) => {
+  if (!ctx.query) return;
+
+  return ctx.answer([
+    { id: '1', title: 'Ехо', text: ctx.query },
+    { id: '2', title: 'Великі літери', text: ctx.query.toUpperCase() },
+  ]);
+});
+```
+
+Result format:
+
+| Field | Description |
+| --- | --- |
+| `id` | Unique result ID |
+| `title` | Title in the list |
+| `text` | Message text when selected |
+
+Yurst accepts both camelCase (`id`, `title`, `text`) and PascalCase (`ID`, `Title`, `Text`).
+
+Learn more: [Inline queries](./inline).
+
+## API response types
+
+All methods that send messages return `Promise<ApiResponse>`:
+
+```ts
+interface ApiResponse {
+  status: number;   // HTTP статус
+  ok: boolean;      // true якщо 200-299
+  data: any;        // Тіло відповіді
+  ms: number;       // Час виконання в мс
+}
+```
+
+Learn more: [HTTP client](./api-client).
+
+## Usage example
+
+```js
+import { bot } from 'yurst';
+
+// Команда з різними типами відповідей
+bot.command('demo', 'Демонстрація', async (ctx) => {
+  // Показуємо індикатор
+  await ctx.typing();
+
+  // Затримка
+  await new Promise(r => setTimeout(r, 1000));
+
+  // Відповідь з кнопками
+  return ctx.reply('Оберіть дію:', {
+    buttons: [
+      [{ text: 'Інформація', data: 'info' }],
+      [{ text: 'Допомога', command: '/help' }],
+    ],
+  });
+});
+
+// Обробка callback
+bot.callback('info', async (ctx) => {
+  await ctx.answer('Це демо-бот!');
+  await ctx.replace('Інформація оновлена!');
+});
+```
+
+## Next
+
+<Card href="./callbacks" title="Callback buttons">
+  Inline buttons, handling presses, and updating messages
+</Card>

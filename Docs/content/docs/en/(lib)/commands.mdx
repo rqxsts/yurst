@@ -1,0 +1,242 @@
+---
+title: Commands
+description: Registering slash commands, arguments, and deep-linking
+---
+
+# Commands
+
+A command is a message that starts with a slash, for example `/ping`. Commands are registered via `bot.command()`.
+
+## Registering commands
+
+### Short form
+
+```js
+bot.command('ping', 'Перевірка з\'єднання', (ctx) => ctx.reply('pong'));
+```
+
+Parameters:
+- `name` — command name without `/`
+- `description` — description for the command list in Yurba
+- `handler` — handler function, receives `MessageContext`
+
+### Short form with options
+
+```js
+bot.command('internal', 'Внутрішня команда', handler, { register: false });
+```
+
+Options:
+- `register` — whether to register the command in Yurba (default `true`)
+
+### Object form
+
+```js
+bot.command({
+  name: 'city',
+  description: 'Обрати місто',
+  scope: 'private',     // 'all' | 'private' | 'groups'
+  register: true,       // чи надсилати до Yurba
+  run: (ctx) => ctx.reply('Яке місто?', { keyboard: [['Kyiv', 'Lviv']] }),
+});
+```
+
+Use the object form when you need:
+- `scope` — restricts the visibility of the command
+- `register: false` — a hidden command
+
+## Command parameters
+
+| Parameter | Required | Default | Description |
+| --- | --- | --- | --- |
+| `name` | yes | — | Name without `/`, for example `'ping'` |
+| `description` | no | `''` | Description in the Yurba command list |
+| `scope` | no | `'all'` | `'all'` — all chats, `'private'` — private chats only, `'groups'` — groups and channels |
+| `register` | no | `true` | Whether to send the command to Yurba on startup |
+| `run` | yes | — | Handler, receives [`MessageContext`](./contexts) |
+
+## Yurba API limitations
+
+During `bot.start()` Yurst sends the entire command list with a single `PUT /bot/commands`. This request **replaces the previous list entirely**; an empty list deletes all commands. Yurba returns the saved list, filling in a missing `Scope` with the value `all`.
+
+- The name, after removing one leading `/` and converting to lowercase, must contain from 1 to 32 Latin letters, digits, or `_`.
+- The description can be up to 256 characters long.
+- Up to 50 commands are allowed.
+- An invalid or duplicate name, an unknown `scope`, or exceeding the limit rejects the request; for an invalid name, a duplicate, or an unknown `scope`, Yurba responds with `invalid_command`, and for exceeding the limit — `too_many_commands`. On error, the list does not change.
+
+To manage the list on behalf of the owner, there is `PUT /bots/{bot_id}/commands`, which uses the owner's token. The `/bot/*` endpoints are available only with a bot token.
+
+## Command routing
+
+Yurst looks for an **exact match** between `update.Command` and the command name.
+
+```js
+bot.command('ping', 'Check', (ctx) => ctx.reply('pong'));
+```
+
+If the user sends:
+- `/ping` → the handler is called
+- `/ping extra` → the handler is called, `ctx.args === 'extra'`
+- `/pong` → unknown command, ignored
+
+Unknown commands:
+- Do not reach `bot.on('message')`
+- In dev mode they are logged as `debug: unknown: /unknown`
+
+<Callout type="warn" title="scope is not checked locally">
+  The `scope` parameter is only passed to Yurba during registration. The library does not check the chat type locally for `private` or `groups`. If this is critical — check the dialog type in the handler.
+</Callout>
+
+## Hidden commands
+
+A command with `register: false` works but does not appear in the Yurba command list. It is used for:
+- `/start` with deep-linking
+- Service commands
+- Admin functions
+
+```js
+bot.command({
+  name: 'start',
+  register: false,
+  run: (ctx) => {
+    if (ctx.payload) {
+      return ctx.reply(`Welcome! Ref: ${ctx.payload}`);
+    }
+    return ctx.reply('Welcome!');
+  },
+});
+```
+
+## Arguments and payload
+
+`MessageContext` provides two fields for additional data:
+
+| Field | Source | Description |
+| --- | --- | --- |
+| `ctx.args` | `update.Args` | Text after the command |
+| `ctx.payload` | `update.Payload` | Deep-link parameter |
+
+If the data is missing — the value is `''` (empty string).
+
+### Example with arguments
+
+```js
+bot.command('echo', 'Повторити текст', (ctx) => {
+  if (!ctx.args) {
+    return ctx.reply('Використання: /echo <текст>');
+  }
+  return ctx.reply(ctx.args);
+});
+```
+
+### Deep-linking
+
+A user can launch the bot via a link with a parameter:
+
+```
+https://yurba.one/messenger?bot=ani_&start=ref_123
+```
+
+Handling:
+
+```js
+bot.command({
+  name: 'start',
+  register: false,
+  run: (ctx) => {
+    if (ctx.payload) {
+      // payload === 'ref_123'
+      return ctx.reply(`Вітаємо! Реферальний код: ${ctx.payload}`);
+    }
+    return ctx.reply('Вітаємо!');
+  },
+});
+```
+
+## Automatic command list
+
+The `ctx.help()` method generates text from all registered commands:
+
+```js
+bot.command('help', 'Список команд', (ctx) => ctx.reply(ctx.help()));
+```
+
+Output format:
+
+```
+  `/ping` — Перевірка з'єднання
+  `/echo` — Повторити текст
+  `/city` — Обрати місто
+```
+
+Commands with `register: false` also appear in the list.
+
+<Callout>
+  If the description is empty, there will be no text after the dash.
+</Callout>
+
+## Automatic synchronization
+
+When `bot.start()` is called, Yurst:
+
+1. Collects all commands with `register !== false`
+2. Builds the array `{ Command, Description, Scope }`
+3. Sends `PUT /bot/commands` to Yurba
+
+```js
+// При старті логи покажуть:
+// [info] bot commands → 200 /ping[all] /echo[all] /city[private]
+```
+
+Commands are updated on every bot launch. Changes in the code are applied automatically.
+
+## Examples
+
+### Simple command
+
+```js
+bot.command('ping', 'Перевірка з\'єднання', (ctx) => ctx.reply('pong'));
+```
+
+### Command with arguments
+
+```js
+bot.command('greet', 'Привітання', (ctx) => {
+  const name = ctx.args || 'друг';
+  return ctx.reply(`Привіт, ${name}!`);
+});
+```
+
+### Command for private chats only
+
+```js
+bot.command({
+  name: 'settings',
+  description: 'Налаштування',
+  scope: 'private',
+  run: (ctx) => ctx.reply('Налаштування...', { buttons: [...] }),
+});
+```
+
+### Admin command
+
+```js
+const ADMINS = [12345, 67890];
+
+bot.command({
+  name: 'admin',
+  register: false,
+  run: (ctx) => {
+    if (!ADMINS.includes(ctx.user?.ID)) {
+      return ctx.reply('Немає доступу');
+    }
+    return ctx.reply('Адмін-панель', { buttons: [...] });
+  },
+});
+```
+
+## Next
+
+<Card href="./contexts" title="Contexts">
+  MessageContext, CallbackContext, InlineContext, and their methods
+</Card>

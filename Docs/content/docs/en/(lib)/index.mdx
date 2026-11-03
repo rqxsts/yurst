@@ -1,0 +1,150 @@
+---
+title: Quick Start
+description: Getting started with Yurst
+---
+
+# Introduction to Yurst
+
+Complete documentation for the **Yurst** library for creating bots on Node.js for the [Yurba.one](https://yurba.one) platform.
+
+Yurst provides a singleton `bot` on which you register commands, callback buttons, and event handlers, while everything else (connection, retries, deduplication, command list synchronization) is handled by the library itself.
+
+<Callout title="Requirements">
+  Basic knowledge of JavaScript, Node.js **22 or newer**, and an account on [Yurba.one](https://yurba.one).
+</Callout>
+
+## What Yurst can do
+
+- Commands in short and object form, automatic synchronization of the list with Yurba.
+- Callback buttons with simple prefix-based routing.
+- Inline buttons (`data`, `url`, `copy`, `command`) and reply keyboards.
+- Inline queries, message editing, typing indicator.
+- Updates via WebSocket with automatic fallback to long polling.
+- No runtime dependencies, ESM only.
+
+## First bot
+
+### Install Node.js [step]
+
+Download [Node.js](https://nodejs.org/en) version 22 or newer and verify it:
+
+```sh
+node --version
+```
+
+### Create a bot [step]
+
+[Go to the developer settings](https://yurba.one/settings/?page=developer#createBot), create a new bot, and save its token.
+
+<Callout title="Important" type="warn">
+  Do not give anyone access to the token. Do not publish it in repositories.
+</Callout>
+
+### Create a project [step]
+
+<Tabs items={['npm', 'pnpm', 'yarn', 'bun']}>
+  <Tab value="npm">
+    ```sh
+    npm init -y
+    ```
+  </Tab>
+  <Tab value="pnpm">
+    ```sh
+    pnpm init
+    ```
+  </Tab>
+  <Tab value="yarn">
+    ```sh
+    yarn init -y
+    ```
+  </Tab>
+  <Tab value="bun">
+    ```sh
+    bun init
+    ```
+  </Tab>
+</Tabs>
+
+Yurst is an ESM package, so add the line `"type": "module"` to `package.json`:
+
+```json title="package.json"
+{
+  "name": "my-bot",
+  "type": "module"
+}
+```
+
+### Install Yurst [step]
+
+<Tabs items={['npm', 'pnpm', 'yarn', 'bun']}>
+  <Tab value="npm">
+    ```sh
+    npm install yurst
+    ```
+  </Tab>
+  <Tab value="pnpm">
+    ```sh
+    pnpm add yurst
+    ```
+  </Tab>
+  <Tab value="yarn">
+    ```sh
+    yarn add yurst
+    ```
+  </Tab>
+  <Tab value="bun">
+    ```sh
+    bun add yurst
+    ```
+  </Tab>
+</Tabs>
+
+### Add the token [step]
+
+Create a `.env` file in the project root:
+
+```dotenv title=".env"
+TOKEN=b.your_bot_token
+MODE=ws 
+```
+
+Do not forget to add `.env` to `.gitignore`.
+
+### Write the code [step]
+
+```js title="src/index.js"
+import { bot } from 'yurst';
+
+bot.command('ping', 'Connection check', (ctx) => ctx.reply('pong'));
+bot.command('help', 'List of commands', (ctx) => ctx.reply(ctx.help()));
+
+await bot.start();
+```
+
+### Run the bot [step]
+
+```sh
+node --env-file=.env src/index.js
+```
+
+Open the chat with the bot on Yurba.one and send `/ping`. If you receive `pong` in response, everything works.
+
+## Where to go next
+
+ <Cards>
+  <Card href="./configuration" title="Configuration">
+    Environment variables and `.env` settings.
+  </Card>
+  <Card href="./commands" title="Commands">
+    How to register and handle commands.
+  </Card>
+  <Card href="./callbacks" title="Callbacks and buttons">
+    Creating interactive messages.
+  </Card>
+  <Card href="./examples" title="Examples">
+    Ready-made scenarios that you can copy and use.
+  </Card>
+  <Card href="./reference" title="API Reference">
+    All exports and methods of the library in one place.
+  </Card>
+</Cards>

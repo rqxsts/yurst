@@ -1,0 +1,182 @@
+---
+title: Events
+description: All update types and their handling
+---
+
+# Events
+
+`bot.on(event, handler)` subscribes a handler to a Yurba update type.
+
+## Registering handlers
+
+```js
+bot.on('message', (ctx) => {
+  console.log('Повідомлення:', ctx.message.Text);
+});
+
+bot.on('inline', (ctx) => {
+  if (!ctx.query) return;
+  return ctx.answer([{ id: '1', title: 'Echo', text: ctx.query }]);
+});
+
+bot.on('stopped', (update) => {
+  console.log('Користувач заблокував бота:', update.User?.ID);
+});
+```
+
+## Event types and contexts
+
+| Event | What the handler receives | Description |
+| --- | --- | --- |
+| `message` | [`MessageContext`](./contexts) | Regular messages (not commands) |
+| `inline` | [`InlineContext`](./inline) | Inline queries (`@bot query`) |
+| `callback` | — | Handled via [`bot.callback()`](./callbacks) |
+| Others | Raw update | See the table below |
+
+## Other events
+
+For all other types, Yurst passes the **raw update object**:
+
+| Event | When it occurs |
+| --- | --- |
+| `inline_sent` | The user selected an inline result |
+| `stopped` | The user blocked the bot |
+| `added` | The bot was added to a chat |
+| `removed` | The bot was removed from a chat |
+| `joined` | Someone joined the chat |
+| `left` | Someone left the chat |
+| `edit` | A message was edited |
+| `delete` | A message was deleted |
+| `test` | A test request from the bot settings |
+
+### Examples
+
+```js
+// Користувач заблокував бота
+bot.on('stopped', (update) => {
+  console.log(`User ${update.User?.ID} blocked the bot`);
+});
+
+// Бота додали до чату
+bot.on('added', (update) => {
+  console.log('Added to chat:', update);
+});
+
+// Повідомлення відредаговано
+bot.on('edit', (update) => {
+  const msg = update.Message;
+  console.log(`Message ${msg?.ID} edited:`, msg?.Text);
+});
+
+// Повідомлення видалено
+bot.on('delete', (update) => {
+  console.log('Message deleted:', update);
+});
+```
+
+## Multiple handlers
+
+You can register several handlers for one event. They run **sequentially**:
+
+```js
+bot.on('message', async (ctx) => {
+  console.log('Перший обробник');
+  // Виконується першим
+});
+
+bot.on('message', async (ctx) => {
+  console.log('Другий обробник');
+  // Виконується другим
+});
+```
+
+### Error handling
+
+If a handler throws an error:
+1. Subsequent handlers for this event **are not called**
+2. The error is logged
+3. `stats.errors` is incremented
+4. The process keeps running
+
+```js
+bot.on('message', async (ctx) => {
+  throw new Error('Помилка!');
+  // Цей код не виконається
+});
+
+bot.on('message', async (ctx) => {
+  // Цей обробник НЕ буде викликаний
+  // бо попередній впав з помилкою
+});
+```
+
+<Callout type="warn" title="Do not forget await">
+  If you call asynchronous methods, be sure to `await` the promise or return it. Otherwise the error may be lost.
+</Callout>
+
+## Concurrency
+
+Different updates can be processed simultaneously:
+
+```js
+let counter = 0;
+
+bot.on('message', async (ctx) => {
+  const current = counter++;
+  await new Promise(r => setTimeout(r, 1000));
+  console.log(current, counter);
+  // Може вивести: 0 5
+  // Бо інші оновлення оброблялися паралельно
+});
+```
+
+<Callout>
+  If handlers share state (a Map, counters, and so on), do not assume sequential execution.
+</Callout>
+
+## The message event
+
+`bot.on('message')` receives only **non-command** messages:
+
+```js
+bot.command('ping', 'Ping', (ctx) => ctx.reply('pong'));
+
+bot.on('message', (ctx) => {
+  // Сюди НЕ потрапить /ping
+  // Сюди потрапить будь-яке інше повідомлення
+  console.log('Text:', ctx.message.Text);
+});
+```
+
+## Unknown events
+
+If Yurba adds a new event type, Yurst passes it as a raw object:
+
+```js
+bot.on('new_event_type', (update) => {
+  console.log('New event:', update);
+});
+```
+
+## Example: Logging all events
+
+```js
+import { L } from 'yurst';
+
+// Логуємо всі події
+const EVENT_TYPES = [
+  'stopped', 'added', 'removed', 'joined', 'left', 'edit', 'delete',
+];
+
+for (const type of EVENT_TYPES) {
+  bot.on(type, (update) => {
+    L.info('event', type, update);
+  });
+}
+```
+
+## Next
+
+<Card href="./lifecycle" title="Lifecycle">
+  Startup, graceful shutdown, and error handling
+</Card>
